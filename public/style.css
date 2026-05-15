@@ -1,0 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;700&display=swap');
+
+body {
+     background-color: #1a1a2e;
+    /* This creates a 50% dark overlay over your image */
+     background-image: linear-gradient(rgba(0, 0, 50, 0.98), rgba(0, 0, 100, 0.95)), url('studentbot.png');
+    /* Standard full-page background settings */
+     background-size: cover;
+     background-position: center;
+     background-attachment: fixed;
+     color: #e2e2e2;
+     font-family: 'Segoe UI', sans-serif;
+     margin: 0;
+     padding: 20px;
+     display: flex;
+     flex-direction: column;
+     align-items: center;
+}
+
+.card {
+    background: #16213e;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    border: 1px solid #0f3460;
+    width: 100%;
+    max-width: 800px;
+}
+
+.hidden { display: none !important; }
+
+/* Form Elements */
+input {
+       color:white;
+        background: linear-gradient(rgb(0, 0, 180), rgb(0,0,48));
+        border: none;
+        font-size: 1em;
+        
+}
+
+#invitation-label {color: #00ffcc; font-weight: bold; }
+pre,
+textarea {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(rgba(0, 0, 128,0.5), rgba(0, 0, 48, 0.5)); 
+    color: #00ffcc;
+    font-family: monospace;
+    border: none;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+}
+
+button {
+    background: #e94560;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.deadline-timer {
+    margin-top: 10px;
+    color: #8ef6e4;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+#logo {
+    width: 320px;
+    max-width: 100%;
+    border: 2px solid #0f3460;
+    border-radius: 14px;
+    margin-bottom: 12px;
+    /*transition: transform 2000ms ease, box-shadow 2000ms ease;*/
+    cursor: pointer;
+}
+
+/*
+#logo:hover {
+    transform: scale(2);
+    box-shadow: 0 0 18px rgba(142, 246, 228, 0.4);
+}
+*/    
+
+.current-fight {
+    margin: 14px 0;
+    padding: 12px 16px;
+    background: rgba(0, 255, 204, 0.08);
+    border: 1px solid #0f3460;
+    border-left: 4px solid #00ffcc;
+    border-radius: 12px;
+    color: #c4fff9;
+    font-weight: 600;
+}
+
+.player-list {
+    margin-bottom: 14px;
+    color: #8ef6e4;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+.matrix-container {
+    margin-top: 16px;
+    overflow-x: visible;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(255,255,255,0.03);
+}
+
+#match-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 200px;
+}
+
+#match-matrix {
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 10px 12px;
+    text-align: center;
+    font-size: 0.95rem;
+    background: rgba(0,255,204,0.08);
+    color: #d9fff7;
+}
+
+
+/* Dashboard Layout */
+.game-container {
+    display: grid;
+    grid-template-columns: 2fr 2fr;
+    gap: 10px;
+    width: 100%;
+    max-width: 1200px;
+}
+
+.leaderboard {
+    max-height: calc(400vh - 180px);
+    overflow-y: auto;
+}
+
+#piles-display {
+    justify-content: space-around;
+    font-size: 1rem;
+    padding: 10px 0;
+    transition: transform 2000ms ease, box-shadow 2000ms ease;
+}
+#piles-display:hover {
+                       transform: scale(2);
+                       box-shadow: 0 0 18px rgba(142, 246, 228, 0.4);
+}
+
+#game-log {
+    height: 200px;
+    overflow-y: auto;
+    background: rgba(0,0,0,0.2);
+    padding: 10px;
+    font-size: 0.9rem;
+    transition: transform 2000ms ease, box-shadow 2000ms ease;
+}
+#game-log:hover {
+                 transform: scale(2);
+                 box-shadow: 0 0 18px rgba(142, 246, 228, 0.4);
+}
+.pile { display: flex; flex-direction: row; align-items: center; }
+
+
+#logo,
+#score-table, 
+#match-matrix  { transition: transform 2000ms ease, box-shadow 2000ms ease;}
+
+#logo:hover,
+#score-table:hover, 
+#match-matrix:hover {transform: scale(2); box-shadow: 0 0 18px rgba(142, 246, 228, 0.4);}
+
+#match-matrix-table { border-collapse: collapse;}
+#match-matrix-table td {
+                        border: 1px solid #020b81;
+                        padding: 2px 4px;
+                        text-align: center;
+                        /*font-size: 0.9rem;*/
+                      }
