@@ -340,9 +340,11 @@ const COMPILE_TIME_LIMIT = 100; // Time limit for each match in milliseconds (ca
                                                              const botScript = new vm.Script(botCodeString);
                                                               console.log(`Creating context`);
                                                                const context = vm.createContext({});
-                                                                console.log(`Running Bot code in context with timeout to check for syntax errors and validate play() function...`);
+                                                                console.log(`Running Bot code in context with timeout ${COMPILE_TIME_LIMIT} ms to check for syntax errors and validate play() function...`);
+                                                                let compileStartTime = Date.now();
                                                                  botScript.runInContext(context, { timeout: COMPILE_TIME_LIMIT });
-                                                                  console.log(`Bot code executed successfully. Validating play() function...`);
+                                                                  let compileTime = Date.now() - compileStartTime;
+                                                                  console.log(`Bot code compiling executed successfully in ${compileTime} ms. Validating play() function...`);
                                                                    const playFunction = context.play;
                                                                     // --- VALIDATION TESTS ---
                                                                     // Test 1: Check that the type is a function
