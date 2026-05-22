@@ -18,7 +18,8 @@ body {
 }
 
 center { max-width: 1600px;
-         width: 95%;}
+         width: 95%;
+         }
 
 .card {
     background: #16213e;
@@ -149,6 +150,66 @@ button {
 }
 
 
+/* Dashboard Header */
+.dashboard-header {
+    width: 100%;
+    max-width: 1400px;
+    margin-bottom: 15px;
+    padding: 0 10px;
+}
+
+.bot-code-dropdown {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 12px 15px;
+    border-radius: 8px;
+    border: 1px solid #0f3460;
+}
+
+.bot-code-dropdown label {
+    color: #8ef6e4;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.bot-code-dropdown select {
+    padding: 8px 12px;
+    background: linear-gradient(rgb(0, 0, 180), rgb(0,0,48));
+    color: #00ffcc;
+    border: 1px solid #0f3460;
+    border-radius: 5px;
+    font-family: 'Segoe UI', sans-serif;
+    cursor: pointer;
+}
+
+.bot-code-dropdown select option {
+    background: #16213e;
+    color: #00ffcc;
+}
+
+.bot-code-viewer {
+    max-width: 600px;
+    max-height: 300px;
+    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid #0f3460;
+    border-radius: 5px;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.bot-code-viewer pre {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.bot-code-viewer.hidden {
+    display: none;
+}
+
 /* Dashboard Layout */
 .game-container {
     display: grid;
@@ -156,13 +217,19 @@ button {
     gap: 10px;
     width: 100%;
     max-width: 1400px;
-    height: calc(100vh - 200px);
-    max-height: 80vh;
+    height: calc(100vh - 280px);
+    margin: 0 auto;
 }
 
 .leaderboard {
-    max-height: calc(400vh - 180px);
+    max-height: 100%;
     overflow-y: auto;
+}
+
+.arena {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
 }
 
 #piles-display {
@@ -176,7 +243,8 @@ button {
     background-position: center;
     background-attachment: fixed;
     border-radius: 5px;
-    min-height: 200px;
+    min-height: 150px;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -190,13 +258,16 @@ button {
 }
 
 #game-log {
-    height: 200px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     background: rgba(0,0,0,0.2);
     padding: 10px;
     font-size: 0.9rem;
     transform-origin: 0% 100%;
     transition: transform 2000ms ease, box-shadow 2000ms ease;
+    border-radius: 5px;
+    border: 1px solid rgba(0, 255, 204, 0.2);
 }
 #game-log:hover {
                  transform-origin: 0% 100%;
@@ -585,11 +656,16 @@ button {
     .game-container {
         grid-template-columns: 1fr;
         height: auto;
-        max-height: none;
+        min-height: calc(100vh - 320px);
     }
     
     .leaderboard {
-        max-height: 400px;
+        max-height: 100%;
+        min-height: 400px;
+    }
+    
+    .arena {
+        min-height: 400px;
     }
 }
 

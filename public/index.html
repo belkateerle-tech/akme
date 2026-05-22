@@ -53,6 +53,19 @@
      <hr>
  
      <main id="dashboard-view" class="hidden">
+       <div class="dashboard-header">
+         <div class="bot-code-dropdown">
+           <label for="bot-code-selector">View Bot Codes:</label>
+           <select id="bot-code-selector">
+             <option value="">-- Select a player --</option>
+             <option value="current">My Bot Code</option>
+             <option value="opponent">Opponent Bot Code</option>
+           </select>
+           <div id="bot-code-viewer" class="bot-code-viewer hidden">
+             <pre><code id="displayed-bot-code" class="language-javascript"></code></pre>
+           </div>
+         </div>
+       </div>
        <div class="game-container">
  
         <section class="arena card">

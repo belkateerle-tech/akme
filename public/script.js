@@ -10,6 +10,10 @@ let playerList = [];
 let matchMatrix = [];
 let playerCount = 0;
 let myBotName = null; // Store this client's bot name after registration
+let myBotCode = null; // Store this client's bot code after registration
+let currentOpponentName = null; // Store current opponent's name
+let currentOpponentCode = null; // Store current opponent's bot code
+let playerBotCodes = {}; // Store all players' bot codes for reference
 
     ///  Establish WebSocket connection to the server . Called when this page loaded  to be ready to receive real-time updates about the tournament and game state
     function connect() {
@@ -61,9 +65,12 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                           
                                           if (data.type === "REGISTRATION_SUCCESS") {
                                                                                 myBotName = document.getElementById('avatar-name').value;
+                                                                                myBotCode = document.getElementById('bot-code').value;
+                                                                                playerBotCodes[myBotName] = myBotCode;
                                                                                 logEvent(`✅ ${data.message}`);
                                                                                 regView.classList.add('hidden');
                                                                                 dashView.classList.remove('hidden');
+                                                                                initializeBotCodeDropdown();
                                                                                  return;
                                           }
                                           
@@ -78,6 +85,14 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                                          //console.log("Tournament started! Players:", playerList);
                                                                                         matchMatrix = data.matchMatrix;
                                                                                          //console.log("Initial matrix:", matchMatrix);
+                                                                                         
+                                                                                         // Store all players' bot codes if provided
+                                                                                         Object.values(playerList).forEach(p => {
+                                                                                             if (p.code) {
+                                                                                                 playerBotCodes[p.name] = p.code;
+                                                                                             }
+                                                                                         });
+                                                                                         
                                                                                          renderMatchMatrix(matchMatrix, playerList);
                                                                                           if (deadlineText) 
                                                                                               deadlineText.innerText = "Contest starting now!";
@@ -130,7 +145,11 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                               if (data.type === "CURRENT_FIGHT") {
                                                                                   const fight = data.fight;
                                                                                    currentFightText.innerHTML = `⚔️ <strong>${fight.playerA}</strong> vs <strong>${fight.playerB}</strong> (Game ${fight.game}/${fight.totalGames})`;
-                                              }
+                                                                                   
+                                                                                   // Determine opponent name
+                                                                                   currentOpponentName = (fight.playerA === myBotName) ? fight.playerB : fight.playerA;
+                                                                                   currentOpponentCode = playerBotCodes[currentOpponentName] || null;
+                                                                              }
                                               
                                               if (data.type === "MOVE") {
                                                                         updatePiles(data);
@@ -432,6 +451,42 @@ function initializeCodeHighlighting() {
 
         // Initial highlighting
         updateHighlighting();
+}
+
+// Initialize bot code dropdown selector
+function initializeBotCodeDropdown() {
+    const selector = document.getElementById('bot-code-selector');
+    const viewer = document.getElementById('bot-code-viewer');
+    const displayCode = document.getElementById('displayed-bot-code');
+    
+    if (!selector) return;
+    
+    selector.addEventListener('change', (e) => {
+        const value = e.target.value;
+        
+        if (value === 'current' && myBotCode) {
+            displayCode.textContent = myBotCode;
+            viewer.classList.remove('hidden');
+            if (window.hljs) {
+                delete displayCode.dataset.highlighted;
+                window.hljs.highlightElement(displayCode);
+            }
+        } else if (value === 'opponent' && currentOpponentCode) {
+            displayCode.textContent = currentOpponentCode;
+            viewer.classList.remove('hidden');
+            if (window.hljs) {
+                delete displayCode.dataset.highlighted;
+                window.hljs.highlightElement(displayCode);
+            }
+        } else if (value === 'opponent' && !currentOpponentCode) {
+            viewer.classList.add('hidden');
+            displayCode.textContent = '';
+            logEvent('Opponent bot code not yet available');
+        } else {
+            viewer.classList.add('hidden');
+            displayCode.textContent = '';
+        }
+    });
 }    
 
 // Call initialization when page loads

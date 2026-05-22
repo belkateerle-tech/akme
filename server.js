@@ -1,4 +1,4 @@
-const version = "0.1.2" 
+const version = "0.1.   3" 
 const express             = require('express'); // Express framework for handling HTTP requests and serving the dashboard
 const { WebSocketServer } = require('ws'); // WebSocket library for real-time communication with the dashboard
 const vm                  = require('vm'); // Node's built-in virtual machine module for safely executing untrusted Bot code in a sandboxed environment with timeouts to prevent abuse
@@ -22,16 +22,16 @@ const    wss = new WebSocketServer({ server }); // WebSocket server for real-tim
              res.sendFile(path.join(__dirname, 'public', 'admin.html'));
          });
          
+         // Authentication postback route for tunnel/forwarding services (GitHub Codespaces, etc.)
+         app.post('/auth/postback/tunnel', (req, res) => {
+              console.log("Tunnel postback received:", req.query);
+              const redirectPath = req.query.rd || '/admin';
+              res.redirect(redirectPath);
+         });
+         
          // Player registration is now handled via WebSocket messages (type: "REGISTER_PLAYER")
          // See the WebSocket message handler below for the registration logic
          
-var playersNumber = 0;
-var players = {};
-var adminClients = new Set(); // Track authenticated admin WebSocket connections
-var clientEmailMap = new Map(); // Map from WebSocket client to player email
-var emailToClientMap = new Map(); // Map from player email to WebSocket client
-var clientHeartbeat = new Map(); // Track last heartbeat time for each client
-var heartbeatInterval = null; // Heartbeat interval timer
          
          
 // Start the server
@@ -104,6 +104,15 @@ const PORT = 3000;
                                                                            }, HEARTBEAT_TIMEOUT); // Check every 5 seconds
                                   }
                      );        
+
+var playersNumber = 0;
+var players = {};
+var adminClients = new Set(); // Track authenticated admin WebSocket connections
+var clientEmailMap = new Map(); // Map from WebSocket client to player email
+var emailToClientMap = new Map(); // Map from player email to WebSocket client
+var clientHeartbeat = new Map(); // Track last heartbeat time for each client
+var heartbeatInterval = null; // Heartbeat interval timer
+
 
 let tournamentStarted   = false;// Flag to prevent multiple tournament starts
 let tournamentStartTime = null; // Timestamp for when the tournament is scheduled to start, sent to clients for countdown display
