@@ -1,4 +1,4 @@
-const version = "0.1.   3" 
+const version = "0.1.4" 
 const express             = require('express'); // Express framework for handling HTTP requests and serving the dashboard
 const { WebSocketServer } = require('ws'); // WebSocket library for real-time communication with the dashboard
 const vm                  = require('vm'); // Node's built-in virtual machine module for safely executing untrusted Bot code in a sandboxed environment with timeouts to prevent abuse
@@ -364,15 +364,15 @@ const COMPILE_TIME_LIMIT = 100; // Time limit for each match in milliseconds (ca
                                                                      let idx = playersNumber;
                                                                       playersNumber++;
                                                                       const registrationTime = Date.now();
-                                                                      players[email] = {
-                                                                          idx,
-                                                                          name,
-                                                                          code,
-                                                                          timeBank: CONFIG.baseTime,
-                                                                          score: 0,
-                                                                          status: "READY",
-                                                                          registrationTime: registrationTime
-                                                                      };
+                                                                        players[email] = {
+                                                                            idx,
+                                                                            name,
+                                                                            code,
+                                                                            timeBank: CONFIG.baseTime,
+                                                                            score: 0,
+                                                                            status: "READY",
+                                                                            registrationTime: registrationTime
+                                                                        };
                                                                       
                                                                       // Track the client-to-email mapping for disconnection detection
                                                                       clientEmailMap.set(ws, email);
@@ -567,50 +567,43 @@ let isPaused = false;
                                          let currentPlayer; 
                                          let  opponentPlayer = players[currentFirstPlayerEmail];
                                           while (!isGameOver(state.piles)) {
+                                                    // Determine current player and opponent based on the turn
                                                     currentPlayer = opponentPlayer; 
                                                      opponentPlayerEmail = opponentEmail(opponentPlayerEmail);
                                                       opponentPlayer = players[opponentPlayerEmail];
+
                                                    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                                                    let report = runBotSafe(currentPlayer, state.piles);
                                                    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                                    let move = report.result;
+
+                                                   let move = report.result;
                                                     if (report.error) {
                                                          console.log(`${currentPlayer.name} made Error :`,report.error);
                                                          broadcast({ type: "DISQUALIFIED_FOR_ERROR", error: report.error, player: currentPlayer.name  });
-                                                          //currentPlayer.score -= 10;
-                                                          currentPlayer.timeBank -= CONFIG.baseTime ;
-                                                           if(currentPlayer.timeBank<0)currentPlayer.timeBank=0; // Disqualified player loses all remaining time
-                                                          opponentPlayer.score += 1;
-                                                          recordMatchResult(emailA, emailB, opponentEmail(state.turn), 0);
+                                                         opponentPlayer.score += 1;
+                                                          recordMatchResult(emailA, emailB, opponentPlayerEmail, 0);
                                                            getMatchMatrixDisplay();
                                                             broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: opponentPlayer.name });
-                                                            continue setOfMatches; 
+
+                                                             continue setOfMatches; 
                                                      }
                                                       // Validate currentPlayer Move 
                                                           if (!isValidMove(move, state.piles)) {
                                                               console.log(`${currentPlayer.name}(${state.turn}) try to do invalid move:`,move, " for piles: ", state.piles);
+                                                              currentPlayer.timeBank -= CONFIG.baseTime; // Penalize the player by subtracting the baseTime from their time bank for making an invalid move, which can lead to disqualification if their time bank runs out. This encourages players to write correct and efficient code, as invalid moves will have a significant penalty on their chances of winning future matches.
                                                               broadcast({ type: "DISQUALIFIED_FOR_INVALID_MOVE", invalidMove: move, piles: state.piles, player: currentPlayer.name  });
-                                                              // currentPlayer.score -= 10;
-                                                               currentPlayer.timeBank -= CONFIG.baseTime ;
-                                                                if(currentPlayer.timeBank<0)currentPlayer.timeBank=0; // Disqualified player loses all remaining time
                                                                opponentPlayer.score += 1; 
-                                                               recordMatchResult(emailA, emailB, opponentEmail(state.turn), 0);
+                                                               recordMatchResult(emailA, emailB, opponentPlayerEmail);
                                                                 getMatchMatrixDisplay();
                                                                  broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: opponentPlayer.name });
                                                                 continue setOfMatches; 
                                                           }
-                                                               //Bonus time for making a valid quick move
-                                                               let bonusTime  = CONFIG.baseTime -  report.timeSpent
-                                                                currentPlayer.timeBank += bonusTime ; // Time carry-over logic: player gains back the baseTime minus the time they actually spent thinking. If they spend more than baseTime, they lose time from their timeBank, if they spend less, they gain some time. This encourages efficient code.
-                                                               
 
                                                                 // Apply Valid Move
                                                                 state.piles[move.pileIndex] -= move.count;
-                                                                 broadcast({ type: "MOVE", piles: state.piles, player: currentPlayer.name, count: move.count, bonus: bonusTime, movedFrom: move.pileIndex });
-                                                                 await delay(100);
-                                                                  //await new Promise(delayresolve => setTimeout(delayresolve, 500 /*ms*/)); // Slow down for dashboard viewers
-                                                     
-                                                     
+                                                                 broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank });
+
+                                                                          await delay(100); // Slow down move for dashboard viewers
                                            }
                                             // Determine Winner & Time Carry-over logic
                                             //if(CONFIG.mode === "NORMAL")                             
@@ -618,8 +611,7 @@ let isPaused = false;
                                              console.log(`Winner email : ${winnerEmail} `);                                                                                                                         
                                               console.log(`Winner of match : ${currentPlayer.name} `);                                                                                                                         
                                              currentPlayer.score += 1;
-                                             //opponentPlayer.timeBank = 0; // The loser of the match loses all remaining time for the next matches, while the winner keeps their remaining time as carry-over for their next matches. This rewards players who win quickly and penalizes those who lose or play inefficiently.
-                                              recordMatchResult(emailA, emailB, winnerEmail, 0);
+                                              recordMatchResult(emailA, emailB, winnerEmail);
                                                getMatchMatrixDisplay();
                                                 broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: players[winnerEmail].name });
                                                  await delay(2000);
@@ -643,25 +635,31 @@ let isPaused = false;
                      // Compile the Bot code in virtual machine 
                       const  botScript = new vm.Script(botCodeString);
                        try {
-                            //start time 
-                            const startTime = Date.now();  
-                             // Run with time limit
-                             vm.createContext(sandbox);// Create a new context for each execution to prevent state sharing
-                              // Run the Bot code with a timeout to prevent infinite loops or long execution times. The timeout is set to the player's remaining time bank. 
-                              botScript.runInContext(sandbox, { timeout: Math.min(50, +player.timeBank+CONFIG.baseTime) }); // Add baseTime to ensure Bots have at least some time to make a move even if their timeBank is low
+                            vm.createContext(sandbox);// Create a new context for each execution to prevent state sharing
+                           
+                           // Run with time limit
+                           //player.timeBank = (+player.timeBank) + CONFIG.baseTime
+                            let timeLimit = (+player.timeBank) + CONFIG.baseTime; // Add baseTime to ensure Bots have at least some time to make a move even if their timeBank is low
+                             if(timeLimit<0)timeLimit = CONFIG.baseTime ; // The time limit for the Bot's code execution is the baseTime plus any remaining time in their timeBank, allowing for time carry-over between matches. This encourages players to write efficient code that can make decisions quickly, as taking too long will reduce their available time for future matches.
+                             //start time 
+                             const startTime = Date.now();  
+                             // Run the Bot code with a timeout to prevent infinite loops or long execution times. The timeout is set to the player's remaining time bank. 
+                              botScript.runInContext(sandbox, { timeout: timeLimit }); // Add baseTime to ensure Bots have at least some time to make a move even if their timeBank is low
                                //end time
                                const endTime = Date.now();
                                 const duration = endTime - startTime;
+                                 player.timeBank = timeLimit - duration; // Subtract the time spent from the player's time bank
                                  let report = { result: sandbox.result, timeSpent: duration }
                                   return report; // contains the move = sandbox.result from the Bot's play() function
                          }
                         catch (err) {// If there's an error (syntax error, runtime error, timeout), we consider it an invalid move and disqualify the player for that match
                                    let report = {result: sandbox.result, error: "ABUSER", detail: err.message }
+                                    player.timeBank -= CONFIG.baseTime ; // Penalize the player by subtracting the baseTime from their time bank for making an invalid move (error in code execution), which can lead to disqualification if their time bank runs out. This encourages players to write correct and efficient code, as errors will have a significant penalty on their chances of winning future matches.
                                     return report; // move={} and error is "ABUSER" to indicate the Bot code is not compliant with the rules (syntax error, runtime error, or timeout)
                                  }
             }
 
-            function recordMatchResult(emailA, emailB, winnerEmail, bonus) {
+            function recordMatchResult(emailA, emailB, winnerEmail, bonus=0) {
                                        const key = [emailA, emailB].sort().join('|');
                                        // matchMatrix structure: { "emailA|emailB": { playerA, playerB, winsA, winsB, bonusA, bonusB } }
                                         if (!matchMatrix[key]) 
