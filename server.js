@@ -15,19 +15,23 @@ const    wss = new WebSocketServer({ server }); // WebSocket server for real-tim
         app.use(express.json()); // Middleware to parse JSON bodies in HTTP requests 
         app.use(express.static('public')); // Serves your index.html in /public directory    
         
-         // --- ROUTES ---
+         // ==== ROUTES =====
          // Admin panel route
-         app.get('/admin', (req, res) => {
-              console.log("/admin get request received!");
-             res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+         app.get('/admin', 
+                          //--------------------------------------------------------------------- 
+                         (req, res) => {
+                                        console.log("/admin get request received!");
+                                        res.sendFile(path.join(__dirname, 'public', 'admin.html'));
          });
          
          // Authentication postback route for tunnel/forwarding services (GitHub Codespaces, etc.)
-         app.post('/auth/postback/tunnel', (req, res) => {
-              console.log("Tunnel postback received:", req.query);
-              const redirectPath = req.query.rd || '/admin';
-              res.redirect(redirectPath);
-         });
+         app.post('/auth/postback/tunnel',
+                            //--------------------------------------------------------------------- 
+                            (req, res) => {
+                                           console.log("Tunnel postback received:", req.query);
+                                           const redirectPath = req.query.rd || '/admin';
+                                            res.redirect(redirectPath);
+                                          });
          
          // Player registration is now handled via WebSocket messages (type: "REGISTER_PLAYER")
          // See the WebSocket message handler below for the registration logic
