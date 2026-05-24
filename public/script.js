@@ -62,6 +62,23 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                            setDeadlineFromDelta(data.delta);
                                                                             return;
                                           }
+                                                                      if (data.type === 'CONFIG' || data.type === 'CONFIG_UPDATED') {
+                                                                          currenConfig = data.config;
+                                                                          // Rebuild bot selector when config changes
+                                                                          try { initializeBotCodeDropdown(); } catch (e) {}
+                                                                          return;
+                                                                      }
+                                                                      if (data.type === 'PLAYERS_LIST') {
+                                                                          playerList = data.players || {};
+                                                                          // Update stored bot codes
+                                                                          Object.values(playerList).forEach(p => {
+                                                                             if (p && p.code) playerBotCodes[p.name] = p.code;
+                                                                          });
+                                                                          try { initializeBotCodeDropdown(); } catch (e) {}
+                                                                          // Update leaderboard immediately when players list is received
+                                                                          try { updateLeaderboard({ players: playerList, matchMatrix: matchMatrix }); } catch (e) {}
+                                                                          return;
+                                                                      }
                                           
                                           if (data.type === "REGISTRATION_SUCCESS") {
                                                                                 myBotName = document.getElementById('avatar-name').value;
@@ -283,12 +300,18 @@ var countdownInterval=null;
                                                      const body = document.getElementById('leaderboard-body');
                                                       body.innerHTML = '';
                                                        Object.values(players)
-                                                           .sort((a,b) => b.score - a.score)
-                                                                .forEach(p => {
-                                                                               //console.log("Updating leaderboard with player:", p); 
-                                                                               body.innerHTML += `<tr><td>${p.name}</td><td>${p.score}</td><td>${p.timeBank}ms</td></tr>`;
-                                                                              }
-                                                                        );
+                                                           .sort((a, b) => {
+                                                               // Primary: score (desc)
+                                                               if (b.score !== a.score) return b.score - a.score;
+                                                               // Secondary: timeBank (desc). Ensure numeric comparison with fallback 0
+                                                               const tbA = Number(a.timeBank) || 0;
+                                                               const tbB = Number(b.timeBank) || 0;
+                                                               return tbB - tbA;
+                                                           })
+                                                           .forEach(p => {
+                                                               const relIR = p.nMoves ? ((Number(p.iRate) || 0) / Number(p.nMoves) * 100).toFixed(2) : '0.00';
+                                                               body.innerHTML += `<tr><td>${p.name}</td><td>${p.score}</td><td>${p.timeBank}ms</td><td>${p.iRate || 0}</td><td>${relIR}%</td></tr>`;
+                                                           });
                 }
                 // Function to render the match matrix table showing wins between players 
                 function renderMatchMatrix(matrixEntries, players) {
@@ -349,7 +372,7 @@ var countdownInterval=null;
 
 
 // Example bot code for the coin game
-const NumOfCodeExamples=2
+
 let CodeExample = [
 `
 // piles:     array of integers  (coins) representing the current state of the game
@@ -383,9 +406,27 @@ let CodeExample = [
                 if(piles[i]== 1) c = 1;
                 else             c = 1;
                  return { pileIndex: i, count: c }; 
- }`
-
+ }`,
+ `
+function play(piles, forbidden, context) {
+             // TO DO 
+             const target = piles.findIndex(p => p > 0); // find the first non-empty pile
+             let NumberOfCoins = 0;
+              if(piles[target]==1) NumberOfCoins=1;
+              else                 NumberOfCoins=2;
+               if (forbidden.includes(NumberOfCoins)) NumberOfCoins=1;   // if for example 2 is forbidden we take 1 coin
+                return { pileIndex: target, count: NumberOfCoins }; 
+}
+//function play() INPUT: (piles, forbidden, context)
+// piles:     array of integers  (coins) representing the current state of the game
+// forbidden: array of forbidden moves
+// context:   { mode: CONFIG.mode, timeRemaining: player.timeBank } 
+//                    CONFIG.mode can be "NORMAL" or "GIVEAWAY" (see rules for details)
+//function play() OUTPUT: Return an object { pileIndex: target, count: NumberOfCoins };
+//For example { pileIndex: 0, count: 1 } represents Bot's  want to take 1 coin from pile with Index 0 
+ `
 ]
+ let NumOfCodeExamples= CodeExample.length;
 
 // Initialize ws connection when page loads
 // Initialize code syntax highlighting for bot code textarea
@@ -394,7 +435,7 @@ function initializeCodeHighlighting() {
     const pre          = document.getElementById('bot-code-highlight');
     const code         = document.getElementById('bot-code-highlight-content');
      if (!botCodeInput || !pre || !code) return;
-        let exampleIndex = Math.random()*2 |0;
+        let exampleIndex = Math.random()*NumOfCodeExamples |0;
         botCodeInput.value = CodeExample[exampleIndex];
         code.textContent   = CodeExample[exampleIndex];
 
@@ -458,36 +499,61 @@ function initializeBotCodeDropdown() {
     const selector = document.getElementById('bot-code-selector');
     const viewer = document.getElementById('bot-code-viewer');
     const displayCode = document.getElementById('displayed-bot-code');
-    
-    if (!selector) return;
-    
-    selector.addEventListener('change', (e) => {
-        const value = e.target.value;
-        
-        if (value === 'current' && myBotCode) {
-            displayCode.textContent = myBotCode;
-            viewer.classList.remove('hidden');
-            if (window.hljs) {
-                delete displayCode.dataset.highlighted;
-                window.hljs.highlightElement(displayCode);
-            }
-        } else if (value === 'opponent' && currentOpponentCode) {
-            displayCode.textContent = currentOpponentCode;
-            viewer.classList.remove('hidden');
-            if (window.hljs) {
-                delete displayCode.dataset.highlighted;
-                window.hljs.highlightElement(displayCode);
-            }
-        } else if (value === 'opponent' && !currentOpponentCode) {
-            viewer.classList.add('hidden');
-            displayCode.textContent = '';
-            logEvent('Opponent bot code not yet available');
-        } else {
-            viewer.classList.add('hidden');
-            displayCode.textContent = '';
+    const dropdownContainer = document.querySelector('.bot-code-dropdown');
+
+    if (!selector || !dropdownContainer) return;
+
+    function rebuildOptions() {
+        selector.innerHTML = '';
+
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '-- Open/Close Code --';
+        selector.appendChild(defaultOpt);
+
+        if (currenConfig && currenConfig.educational && playerList) {
+            Object.values(playerList)
+                .filter(p => p && p.name)
+                .forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.textContent = p.name;
+                    selector.appendChild(opt);
+                });
         }
-    });
-}    
+    }
+
+    function updateVisibility() {
+        const educationalMode = currenConfig && currenConfig.educational;
+        if (educationalMode) {
+            dropdownContainer.style.display = '';
+           viewer.classList.remove("hidden");
+        } else {
+            dropdownContainer.style.display = 'none';
+            viewer.classList.add('hidden');
+            selector.value = '';
+        }
+    }
+
+    rebuildOptions();
+    updateVisibility();
+
+    selector.onchange = (e) => {
+                                const value = e.target.value;
+                                viewer.classList.add('hidden');
+                                 if (value) {
+                                    const code = playerBotCodes[value];
+                                     displayCode.textContent = code;
+                                     viewer.classList.remove('hidden');
+                                      delete displayCode.dataset.highlighted;
+                                       window.hljs && window.hljs.highlightElement(displayCode);
+                                 }
+                                 else {
+                                        //viewer.classList.add('hidden');
+                                        displayCode.textContent = '';
+                                      }
+                               };
+}
 
 // Call initialization when page loads
 document.addEventListener('DOMContentLoaded', () => {

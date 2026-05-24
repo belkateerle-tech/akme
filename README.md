@@ -71,3 +71,35 @@ This script handles the connection to the server and updates the screen when a "
 For any contender their bot code is just a **string** being sent over the internet. On the server, we use `vm.Script` to turn that string back into "living" code. This is a  way  how servers obtains bot codes from gamers.
 
 **To run this in your Codespace** just place files index.html, style.css, script.js in a `/public` folder and server.js in the root!
+
+---
+
+## Troubleshooting: порт занят
+
+Если при запуске `node server.js` вы видите ошибку вида `EADDRINUSE: address already in use :::3000`, это означает, что порт занят другим процессом. Быстрые команды для поиска и завершения такого процесса:
+
+- Показать процесс, слушающий порт 3000:
+
+```bash
+lsof -i :3000 -sTCP:LISTEN -Pn
+```
+
+- Убить процесс по PID (замените <PID> на найденный номер):
+
+```bash
+kill -9 <PID>
+```
+
+- Альтернативно (удобно):
+
+```bash
+fuser -k 3000/tcp
+```
+
+- Если хотите запустить сервер на другом порту временно:
+
+```bash
+PORT=3001 node server.js
+```
+
+Добавление поддержки `PORT` в `server.js` также возможно — сообщите, если желаете, чтобы я это добавил.
