@@ -1,6 +1,4 @@
 // Admin Panel JavaScript
-const ADMIN_PASSWORD_HASH = "ad57366865126e55649ecb23ae1d48887544976efea46a48eb5d85a6eeb4d306"; // SHA256 hash of "100"
-
 let ws = null;
 let isAuthenticated = false;
 let players = {};
@@ -9,86 +7,63 @@ let tournamentStatus = "not_started";
 let countdownInterval = null;
 let countdownTime = 0;
 
-/**
- * SHA256 hash function for password authentication
- */
-async function sha256(message) {
-                                 //console.log(`function sha256(${message})`);
-                                 const msgBuffer = new TextEncoder().encode(message);
-                                  //console.log(`msgBuffer: ${msgBuffer}`);
-                                  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-                                   const hashArray = Array.from(new Uint8Array(hashBuffer));
-                                    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                                     //console.log(`hashHex =  ${hashHex}`);
-    return hashHex;
-}
+        
+        // --------------------Authenticate the admin with password------<button onclick="authenticateAdmin()">Login</button>
+        async function authenticateAdmin() {
+            const passwordInput = document.getElementById('admin-password');
+            const password = passwordInput.value.trim();
+            const errorMsg = document.getElementById('login-error');
 
-/**
- * Authenticate the admin with password
- */
-async function authenticateAdmin() {
-    const passwordInput = document.getElementById('admin-password');
-    const errorMsg = document.getElementById('login-error');
-    const password = passwordInput.value.trim();
+                if (!password) {
+                    errorMsg.textContent = 'Please enter a password';
+                    return;
+                }
 
-     if (!password) {
-         errorMsg.textContent = 'Please enter a password';
-         return;
-     }
-
-     const hash = await sha256(password);
-//     console.log(
-//`Entered password hash: ${hash} \n
-//         Expected hash: ${ADMIN_PASSWORD_HASH}`);
-    
-    if (hash === ADMIN_PASSWORD_HASH) {
-         isAuthenticated = true;
-         document.getElementById('admin-login-view').classList.add('hidden');
-         document.getElementById('admin-panel-view').classList.remove('hidden');
-         connectWebSocket();
-         errorMsg.textContent = '';
-    }
-    else {
-          errorMsg.textContent = 'Invalid password';
-          passwordInput.value = '';
+                    connectWebSocket(password);
         }
-}
 
-/**
- * Connect to WebSocket server for real-time updates
- */
-function connectWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${protocol}://${window.location.host}`);
+            /**
+             * Connect to WebSocket server for real-time updates
+             */
+            function connectWebSocket(password) {
+                                        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                                         ws = new WebSocket(`${protocol}://${window.location.host}`);
+                                                        //------------------------------------------------ 
+                                            ws.onopen = () => {
+                                                                console.log('Admin connected to WebSocket');
+                                                                updateConnectionStatus('Connected', '#00ffcc');
+                                                                ws.send(JSON.stringify({ type: 'ADMIN_LOGIN', password }));
+                                                              };
+                                                        //------------------------------------------------
+                                            ws.onmessage = (event) => {
+                                                                        const data = JSON.parse(event.data);
+                                                                        if (data.type === 'ADMIN_AUTH_FAILURE') {
+                                                                            const errorMsg = document.getElementById('login-error');
+                                                                             errorMsg.textContent = data.message || 'Invalid password';
+                                                                              ws.close();
+                                                                               ws = null;
+                                                                                return;
+                                                                        }
 
-    ws.onopen = () => {
-        console.log('Admin connected to WebSocket');
-        updateConnectionStatus('Connected', '#00ffcc');
-        // Send admin authentication message
-        ws.send(JSON.stringify({ type: 'ADMIN_AUTH' }));
-    };
-
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleServerEvent(data);
-    };
-
-    ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        updateConnectionStatus('Error', '#e94560');
-    };
-
-    ws.onclose = () => {
-        console.log('Admin disconnected from WebSocket');
-        updateConnectionStatus('undefined', '#999');
-        const timerEl = document.getElementById('countdown-timer');
-        if (timerEl) {
-            timerEl.textContent = 'Admin disconnected from Server';
-        }
-        // Attempt to reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
-    };
-}
+                                                                            handleServerEvent(data);
+                                                                    };
+                                                         //------------------------------------------------
+                                            ws.onerror = (error) => {
+                                                                     console.error('WebSocket error:', error);
+                                                                     updateConnectionStatus('Error', '#e94560');
+                                                                    };
+                                                         //------------------------------------------------
+                                            ws.onclose = () => {
+                                                                console.log('Admin disconnected from WebSocket');
+                                                                updateConnectionStatus('undefined', '#999');
+                                                                const timerEl = document.getElementById('countdown-timer');
+                                                                    if (timerEl) {
+                                                                        timerEl.textContent = 'Admin disconnected from Server';
+                                                                    }
+                                                                // Attempt to reconnect after 3 seconds
+                                                                setTimeout(connectWebSocket, 3000);
+                                                               };
+                }
 
 /**
  * Handle events from the server
@@ -172,18 +147,25 @@ function handleServerEvent(data) {
         
         case 'ADMIN_AUTH_SUCCESS':
             // When authenticated, receive current player list and config
+            isAuthenticated = true;
+            document.getElementById('admin-login-view').classList.add('hidden');
+            document.getElementById('admin-panel-view').classList.remove('hidden');
+            document.getElementById('login-error').textContent = '';
+            console.log('Admin authenticated successfully');
+            console.log(`before  if (data.players)...  data.players:`,data.players);
             if (data.players) {
                 players = data.players;
+                console.log(`players =`,players);
                 updatePlayerTable();
             }
+            console.log(`before  if (data.config)...  data.config:`,data.config);
             if (data.config) {
-                document.getElementById('config-piles').value = data.config.piles.join(',');
+                document.getElementById('config-piles')    .value = data.config.piles.join(',');
                 document.getElementById('config-forbidden').value = data.config.forbidden.join(',');
-                document.getElementById('config-baseTime').value = data.config.baseTime;
-                if (typeof data.config.educational === 'boolean') {
-                    document.getElementById('config-educational').checked = data.config.educational;
-                }
+                document.getElementById('config-baseTime') .value = data.config.baseTime;
+                document.getElementById('config-educational').checked = data.config.educational;
             }
+            console.log(`before  if (data.tournamentStartTime)...  data.tournamentStartTime:`,data.tournamentStartTime);
             if (data.tournamentStartTime) {
                 countdownTime = data.tournamentStartTime - Date.now();
                 startCountdown();

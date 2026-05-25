@@ -1,4 +1,5 @@
-const version = "0.2.0" 
+const version = "0.2.1" 
+const crypto              = require('crypto'); // Node crypto for server-side SHA256 password hashing
 const express             = require('express'); // Express framework for handling HTTP requests and serving the dashboard
 const { WebSocketServer } = require('ws'); // WebSocket library for real-time communication with the dashboard
 const vm                  = require('vm'); // Node's built-in virtual machine module for safely executing untrusted Bot code in a sandboxed environment with timeouts to prevent abuse
@@ -12,12 +13,22 @@ const  app = express(); // Express application for handling HTTP requests and se
 const   server = http.createServer(app); // Create an HTTP server to attach both Express and WebSocket to the same port
 const    wss = new WebSocketServer({ server }); // WebSocket server for real-time communication with the dashboard
 
+const ADMIN_PASSWORD_HASH = '449904569c19c55d7537de6e946ccedbc4e4a4d874bdf3263e2efa7c72aa0d35';
+
+function isAdminPasswordValid(password) {
+    //console.log("Admin login attempt with password:", password);
+    let hash = crypto.createHash('sha256').update(password, 'utf8').digest('hex');
+     //console.log("Computed password hash:", hash);
+     //console.log("Expected password hash:", ADMIN_PASSWORD_HASH);
+      return hash === ADMIN_PASSWORD_HASH;
+}
+
         app.use(express.json()); // Middleware to parse JSON bodies in HTTP requests 
         app.use(express.static('public')); // Serves your index.html in /public directory    
         
          // ==== ROUTES =====
          // Admin panel route from project root
-         app.get('/admin',
+         app.get('/adminAKME',
                           //--------------------------------------------------------------------- 
                          (req, res) => {
                                         console.log("/admin get request received!");
@@ -110,13 +121,13 @@ const PORT = 3000;
                                                                                                         timestamp: now
                                                                                                        }
                                                                               //Message = `📊 Connection status update: ${connectedEmails.length} connected - [${connectedEmails.join(', ')}]`;
-                                                                              adminClients.forEach(adminClient => {
-                                                                                                                   adminClient.send(JSON.stringify({
-                                                                                                                       type: "CONNECTION_STATUS_UPDATE",
-                                                                                                                       connectionStatus: connectionStatus,
-                                                                                                                       timestamp: now
-                                                                                                                   }));
-                                                                              });
+                                                                              if (adminClient && adminClient.readyState === 1) {
+                                                                                  adminClient.send(JSON.stringify({
+                                                                                      type: "CONNECTION_STATUS_UPDATE",
+                                                                                      connectionStatus: connectionStatus,
+                                                                                      timestamp: now
+                                                                                  }));
+                                                                              }
                                                                            }, HEARTBEAT_TIMEOUT); // Check every 5 seconds
                                   }
                      );        
@@ -156,7 +167,7 @@ function ensureMicrobotsRegistered() {
         }
     });
 }
-var adminClients = new Set(); // Track authenticated admin WebSocket connections
+var adminClient = null; // Single authenticated admin WebSocket connection
 var clientEmailMap = new Map(); // Map from WebSocket client to player email
 var emailToClientMap = new Map(); // Map from player email to WebSocket client
 var clientHeartbeat = new Map(); // Track last heartbeat time for each client
@@ -201,11 +212,52 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                               clientHeartbeat.set(ws, Date.now());
                                               return;
                                           }
-                                          
-                                          // Handle admin authentication
+
+                                          // Handle admin login request
+                                          if (data.type === "ADMIN_LOGIN") {
+                                              const { password } = data;
+                                              if (typeof password !== 'string' || !password.trim()) {
+                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Password required' }));
+                                                  return;
+                                              }
+
+                                              if (!isAdminPasswordValid(password)) {
+                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Invalid password' }));
+                                                  return;
+                                              }
+
+                                              if (adminClient && adminClient.readyState === 1 && adminClient !== ws) {
+                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Another admin session is already active' }));
+                                                  return;
+                                              }
+
+                                              ws.isAdminAuthenticated = true;
+                                              adminClient = ws;
+                                              console.log("(231) Admin client authenticated");
+                                              ws.send(JSON.stringify({ 
+                                                  type: "ADMIN_AUTH_SUCCESS",
+                                                  players,
+                                                  tournamentStarted,
+                                                  tournamentStartTime,
+                                                  config: CONFIG
+                                              }));
+                                              return;
+                                          }
+
+                                          // Handle admin authentication marker if provided without login
                                           if (data.type === "ADMIN_AUTH") {
-                                              adminClients.add(ws);
-                                              console.log("Admin client authenticated");
+                                              if (!ws.isAdminAuthenticated) {
+                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Authentication required' }));
+                                                  return;
+                                              }
+
+                                              if (adminClient && adminClient !== ws) {
+                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Another admin session is already active' }));
+                                                  return;
+                                              }
+
+                                              adminClient = ws;
+                                              console.log("(250) Admin client authenticated");
                                               ws.send(JSON.stringify({ 
                                                   type: "ADMIN_AUTH_SUCCESS",
                                                   players,
@@ -217,7 +269,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                           }
 
                                           // Handle admin commands
-                                          if (adminClients.has(ws)) {
+                                          if (adminClient === ws) {
                                               if (data.type === "ADMIN_START") {
                                                   console.log("Admin requested tournament start");
                                                   if (!tournamentStarted) {
@@ -386,12 +438,12 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                             broadcast({ type: "NEW_PLAYER", name });
                                                             
                                                             // Notify admin about reconnection
-                                                            adminClients.forEach(adminWs => {
-                                                                adminWs.send(JSON.stringify({
+                                                            if (adminClient && adminClient.readyState === 1) {
+                                                                adminClient.send(JSON.stringify({
                                                                     type: "PLAYER_RECONNECTED",
                                                                     email: email
                                                                 }));
-                                                            });
+                                                            }
                                                             return;
                                                         }
                                                     }
@@ -470,8 +522,10 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                                       
                                                                                                                                             // Broadcast updated players list to all clients (so frontends can populate selectors)
                                                                                                                                             broadcast({ type: 'PLAYERS_LIST', players });
-                                                                                                                                            // Also notify admin clients about the updated players list
-                                                                                                                                            adminClients.forEach(adminWs => { try { adminWs.send(JSON.stringify({ type: 'PLAYERS_LIST', players })); } catch(e){} });
+                                                                                                                                            // Also notify the admin client about the updated players list
+                                                                                                                                            if (adminClient && adminClient.readyState === 1) {
+                                                                                                                                                try { adminClient.send(JSON.stringify({ type: 'PLAYERS_LIST', players })); } catch(e){}
+                                                                                                                                            }
                                                                       // Track the client-to-email mapping for disconnection detection
                                                                       clientEmailMap.set(ws, email);
                                                                       emailToClientMap.set(email, ws);
@@ -482,16 +536,16 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                                        ws.send(JSON.stringify({ type: "REGISTRATION_SUCCESS", message: "Registered!" }));
                                                                         broadcast({ type: "NEW_PLAYER", name });
                                                                         
-                                                                        // Send detailed registration info to admin clients
-                                                                        adminClients.forEach(adminWs => {
-                                                                            adminWs.send(JSON.stringify({
+                                                                        // Send detailed registration info to the admin client
+                                                                        if (adminClient && adminClient.readyState === 1) {
+                                                                            adminClient.send(JSON.stringify({
                                                                                 type: "PLAYER_REGISTERED",
                                                                                 email: email,
                                                                                 name: name,
                                                                                 registrationTime: registrationTime,
                                                                                 status: "connected"
                                                                             }));
-                                                                        });
+                                                                        }
                                                         }
                                                         catch (err) {
                                                             let errmessage = `Error in Bot code for player: ${name} (${email}): ${err.message}`;
@@ -509,8 +563,8 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
 
                    // Handle client disconnect
                    ws.on('close', () => {
-                       if (adminClients.has(ws)) {
-                           adminClients.delete(ws);
+                       if (adminClient === ws) {
+                           adminClient = null;
                            console.log("Admin client disconnected");
                        }
                        
@@ -522,13 +576,13 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                            emailToClientMap.delete(email);
                            clientHeartbeat.delete(ws); // Remove heartbeat tracking
                            
-                           // Notify admin clients about the disconnection
-                           adminClients.forEach(adminWs => {
-                               adminWs.send(JSON.stringify({
+                           // Notify the admin client about the disconnection
+                           if (adminClient && adminClient.readyState === 1) {
+                               adminClient.send(JSON.stringify({
                                    type: "PLAYER_DISCONNECTED",
                                    email: email
                                }));
-                           });
+                           }
                        }
                    });
                   }
