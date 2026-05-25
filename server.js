@@ -10,23 +10,33 @@ const path                = require('path');  // Node's built-in path module for
   const TOURNAMENTS_FILE = path.join(DATA_DIR, 'tournaments.json'); // File to store tournament data in JSON format. This allows for persistence of tournament results and player registrations across server restarts, and can be used for analytics or displaying past tournaments on the dashboard. Make sure to handle file read/write operations with care to avoid data corruption, especially if multiple tournaments are run in quick succession. Consider implementing a simple locking mechanism if needed to prevent concurrent writes.
 
 const  app = express(); // Express application for handling HTTP requests and serving the dashboard
+        app.use(express.json()); // Middleware to parse JSON bodies in HTTP requests 
+        app.use(express.static('public')); // Serves your index.html in /public directory    
 const   server = http.createServer(app); // Create an HTTP server to attach both Express and WebSocket to the same port
 const    wss = new WebSocketServer({ server }); // WebSocket server for real-time communication with the dashboard
 
+
+
+
+
+
+
+
+
+
+
 const ADMIN_PASSWORD_HASH = '449904569c19c55d7537de6e946ccedbc4e4a4d874bdf3263e2efa7c72aa0d35';
 
-function isAdminPasswordValid(password) {
-    //console.log("Admin login attempt with password:", password);
-    let hash = crypto.createHash('sha256').update(password, 'utf8').digest('hex');
-     //console.log("Computed password hash:", hash);
-     //console.log("Expected password hash:", ADMIN_PASSWORD_HASH);
-      return hash === ADMIN_PASSWORD_HASH;
-}
-
-        app.use(express.json()); // Middleware to parse JSON bodies in HTTP requests 
-        app.use(express.static('public')); // Serves your index.html in /public directory    
+            function isAdminPasswordValid(password) {
+                //console.log("Admin login attempt with password:", password);
+                let hash = crypto.createHash('sha256').update(password, 'utf8').digest('hex');
+                 //console.log("Computed password hash:", hash);
+                 //console.log("Expected password hash:", ADMIN_PASSWORD_HASH);
+                  return hash === ADMIN_PASSWORD_HASH;
+            }
+            
         
-         // ==== ROUTES =====
+         // ==== ROUTES =========================================================================
          // Admin panel route from project root
          app.get('/adminAKME',
                           //--------------------------------------------------------------------- 
@@ -147,26 +157,26 @@ const CODE_EXAMPLES = [
 `\n function play(piles, forbidden, context) {\n               // TO DO \n               let i=0, c=0;\n                for(i; i<piles.length; i++)\n                    if(piles[i]>0) break;\n                \n                if(piles[i]== 1) c = 1;\n                else             c = 1;\n                 return { pileIndex: i, count: c }; \n }`,
 `\nfunction play(piles, forbidden, context) {\n             // TO DO \n             const target = piles.findIndex(p => p > 0); // find the first non-empty pile\n             let NumberOfCoins = 0;\n              if(piles[target]==1) NumberOfCoins=1;\n              else                 NumberOfCoins=2;\n               if (forbidden.includes(NumberOfCoins)) NumberOfCoins=1;   // if for example 2 is forbidden we take 1 coin\n                return { pileIndex: target, count: NumberOfCoins }; \n}\n`
 ];
-
-// Ensure microbots are registered in the players map
-function ensureMicrobotsRegistered() {
-    MICROBOTS.forEach((mb, i) => {
-        if (!players[mb.email]) {
-            const idx = playersNumber++;
-            players[mb.email] = {
-                idx,
-                name: mb.name,
-                code: CODE_EXAMPLES[i % CODE_EXAMPLES.length],
-                timeBank: CONFIG.baseTime,
-                score: 0,
-                iRate: 0,
-                nMoves: 0,
-                status: 'connected',
-                registrationTime: Date.now()
-            };
-        }
-    });
-}
+                // Ensure microbots are registered in the players map
+                function ensureMicrobotsRegistered() {
+                                                      MICROBOTS
+                                                          .forEach((mb, i) => {
+                                                                               if (!players[mb.email]) {
+                                                                                   const idx = playersNumber++;
+                                                                                    players[mb.email] = {
+                                                                                                         idx,
+                                                                                                         name: mb.name,
+                                                                                                         code: CODE_EXAMPLES[i % CODE_EXAMPLES.length],
+                                                                                                         timeBank: CONFIG.baseTime,
+                                                                                                         score: 0,
+                                                                                                         iRate: 0,
+                                                                                                         nMoves: 0,
+                                                                                                         status: 'connected',
+                                                                                                         registrationTime: Date.now()
+                                                                                                        };
+                                                                               }
+                                                                              });
+                }
 var adminClient = null; // Single authenticated admin WebSocket connection
 var clientEmailMap = new Map(); // Map from WebSocket client to player email
 var emailToClientMap = new Map(); // Map from player email to WebSocket client
@@ -270,35 +280,41 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
 
                                           // Handle admin commands
                                           if (adminClient === ws) {
+
                                               if (data.type === "ADMIN_START") {
-                                                  console.log("Admin requested tournament start");
+                                                 console.log("Admin requested tournament start");
                                                   if (!tournamentStarted) {
                                                       if (startTimeout) {
                                                           clearTimeout(startTimeout);
-                                                          startTimeout = null;
+                                                           startTimeout = null;
                                                       }
-                                                      startChampionship();
+                                                       ///////////////////////////////////////////////
+                                                       startChampionship();//////////////////////////
+                                                     ///////////////////////////////////////////////
                                                   }
-                                                  return;
+                                                   return;
                                               }
-                                              else if (data.type === "ADMIN_PAUSE") {
-                                                  console.log("Admin requested tournament pause");
-                                                  if (tournamentStarted && !isPaused) {
-                                                      isPaused = true;
-                                                      broadcast({ type: "CONTEST_PAUSED" });
-                                                  }
-                                                  return;
+
+                                              if (data.type === "ADMIN_PAUSE") {
+                                                       console.log("Admin requested tournament pause");
+                                                        if (tournamentStarted && !isPaused) {
+                                                            isPaused = true;
+                                                            broadcast({ type: "CONTEST_PAUSED" });
+                                                        }
+                                                         return;
                                               }
-                                              else if (data.type === "ADMIN_RESUME") {
-                                                  console.log("Admin requested tournament resume");
+
+                                              if (data.type === "ADMIN_RESUME") {
+                                                 console.log("Admin requested tournament resume");
                                                   if (tournamentStarted && isPaused) {
                                                       isPaused = false;
                                                       broadcast({ type: "CONTEST_RESUMED" });
                                                   }
-                                                  return;
+                                                   return;
                                               }
-                                              else if (data.type === "ADMIN_NEW_TOURNAMENT") {
-                                                  console.log("Admin requested new tournament");
+
+                                              if (data.type === "ADMIN_NEW_TOURNAMENT") {
+                                                 console.log("Admin requested new tournament");
                                                   if (!tournamentStarted) {
                                                       playersNumber = 0;
                                                       players = {};
@@ -310,57 +326,60 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                           clearTimeout(startTimeout);
                                                       }
                                                       tournamentStartTime = Date.now() + DEFAULT_START_DELAY_MS;
-                                                      console.log(`New tournament scheduled to start at ${new Date(tournamentStartTime).toLocaleString()}`);
-                                                      startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
+                                                       console.log(`New tournament scheduled to start at ${new Date(tournamentStartTime).toLocaleString()}`);
+                                                       startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
                                                       // Re-register microbots and notify clients
                                                       ensureMicrobotsRegistered();
                                                       broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
                                                       broadcast({ type: "NEW_CONTEST_BEGINS", players: players, matchMatrix: {}, config: CONFIG });
                                                       broadcast({ type: 'PLAYERS_LIST', players });
                                                   }
-                                                  return;
+                                                   return;
                                               }
-                                              else if (data.type === "ADMIN_UPDATE_CONFIG") {
+
+                                              if (data.type === "ADMIN_UPDATE_CONFIG") {
                                                   console.log("Admin updating configuration:", data.config);
-                                                  if (data.config.piles) CONFIG.piles = data.config.piles;
+                                                  if (data.config.piles)     CONFIG.piles     = data.config.piles;
                                                   if (data.config.forbidden) CONFIG.forbidden = data.config.forbidden;
-                                                  if (data.config.baseTime) CONFIG.baseTime = data.config.baseTime;
+                                                  if (data.config.baseTime)  CONFIG.baseTime  = data.config.baseTime;
                                                   if (typeof data.config.educational === 'boolean') {
                                                       CONFIG.educational = data.config.educational;
                                                       CONFIG.mode = CONFIG.educational ? 'EDUCATIONAL' : 'NORMAL';
                                                   }
                                                   if (typeof data.config.moveDelayMs === 'number') {
                                                       MOVE_DELAY_MS = Math.max(0, Math.min(2000, data.config.moveDelayMs));
-                                                      console.log(`Move delay updated to ${MOVE_DELAY_MS}ms`);
+                                                       console.log(`Move delay updated to ${MOVE_DELAY_MS}ms`);
                                                   }
                                                   if (typeof data.config.matchDelayMs === 'number') {
                                                       MATCH_DELAY_MS = Math.max(0, Math.min(2000, data.config.matchDelayMs));
-                                                      console.log(`Match delay updated to ${MATCH_DELAY_MS}ms`);
+                                                       console.log(`Match delay updated to ${MATCH_DELAY_MS}ms`);
                                                   }
-                                                  broadcast({ type: "CONFIG_UPDATED", config: CONFIG });
-                                                  ws.send(JSON.stringify({ type: "ADMIN_CONFIG_UPDATED" }));
-                                                  return;
+                                                   broadcast({ type: "CONFIG_UPDATED", config: CONFIG });
+                                                   ws.send(JSON.stringify({ type: "ADMIN_CONFIG_UPDATED" }));
+                                                    return;
                                               }
-                                              else if (data.type === "ADMIN_REQUEST_BOT_CODE") {
-                                                  const { email } = data;
+
+                                              if (data.type === "ADMIN_REQUEST_BOT_CODE") {
+                                                 const { email } = data;
                                                   if (players[email]) {
                                                       ws.send(JSON.stringify({
-                                                          type: "ADMIN_BOT_CODE_RESPONSE",
-                                                          email: email,
-                                                          name: players[email].name,
-                                                          code: players[email].code
-                                                      }));
-                                                  } else {
-                                                      ws.send(JSON.stringify({
-                                                          type: "ADMIN_BOT_CODE_RESPONSE",
-                                                          email: email,
-                                                          error: "Player not found"
-                                                      }));
+                                                                                type: "ADMIN_BOT_CODE_RESPONSE",
+                                                                                email: email,
+                                                                                name: players[email].name,
+                                                                                code: players[email].code
+                                                                            }));
                                                   }
-                                                  return;
+                                                  else {
+                                                         ws.send(JSON.stringify({
+                                                                                  type: "ADMIN_BOT_CODE_RESPONSE",
+                                                                                  email: email,
+                                                                                  error: "Player not found"
+                                                                                }));
+                                                  }
+                                                    return;
                                               }
                                           }
-                                          
+                                          /*
                                            //for testing purposes, allow clients to request starting the tournament immediately instead of waiting for the scheduled time
                                            if (data.type === "START_TOURNAMENT_REQUEST") {
                                                console.log("Tournament start requested by a client.");
@@ -412,6 +431,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                 }
                                            }
                                            else // Handle player registration via WebSocket
+                                           */
                                                 if (data.type === "REGISTER_PLAYER") {
                                                    const { email, name, code } = data;
                                                     console.log(`beginning Registering player: ${name} (${email}) ...`);
@@ -419,56 +439,58 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                     // Check for duplicate email registration (allow reconnection before tournament starts)
                                                     if (players[email]) {
                                                         const oldWs = emailToClientMap.get(email);
-                                                        const alreadyConnected = oldWs && oldWs.readyState === 1 && oldWs !== ws;
-                                                        if (tournamentStarted || alreadyConnected) {
-                                                            let errmessage = `Player with email ${email} is already registered`;
-                                                            console.log(errmessage);
-                                                            ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
-                                                            return;
-                                                        } else {
-                                                            // Allow reconnection if the previous websocket is no longer active
-                                                            console.log(`Player ${email} is reconnecting...`);
-                                                            if (oldWs) {
-                                                                clientEmailMap.delete(oldWs);
-                                                            }
-                                                            clientEmailMap.set(ws, email);
-                                                            emailToClientMap.set(email, ws);
+                                                         const alreadyConnected = oldWs && oldWs.readyState === 1 && oldWs !== ws;
+                                                          if (tournamentStarted || alreadyConnected) {
+                                                              let errmessage = `Player with email ${email} is already registered`;
+                                                              console.log(errmessage);
+                                                              ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                               return;
+                                                          }
+                                                           //else
+                                                            {
+                                                             // Allow reconnection if the previous websocket is no longer active
+                                                             console.log(`Player ${email} is reconnecting...`);
+                                                             if (oldWs) {
+                                                                 clientEmailMap.delete(oldWs);
+                                                             }
+                                                              clientEmailMap.set(ws, email);
+                                                              emailToClientMap.set(email, ws);
                                                             
-                                                            ws.send(JSON.stringify({ type: "REGISTRATION_SUCCESS", message: "Reconnected!" }));
-                                                            broadcast({ type: "NEW_PLAYER", name });
+                                                             ws.send(JSON.stringify({ type: "REGISTRATION_SUCCESS", message: "Reconnected!" }));
+                                                             broadcast({ type: "NEW_PLAYER", name });
                                                             
-                                                            // Notify admin about reconnection
-                                                            if (adminClient && adminClient.readyState === 1) {
-                                                                adminClient.send(JSON.stringify({
-                                                                    type: "PLAYER_RECONNECTED",
-                                                                    email: email
-                                                                }));
+                                                             // Notify admin about reconnection
+                                                             if (adminClient && adminClient.readyState === 1) {
+                                                                 adminClient.send(JSON.stringify({
+                                                                                                     type: "PLAYER_RECONNECTED",
+                                                                                                     email: email
+                                                                                                 }));
+                                                             }
+                                                              return;
                                                             }
-                                                            return;
-                                                        }
                                                     }
                                                
                                                        // Basic validation for name and email
                                                        if (!email || !email.trim()) {
                                                            let errmessage = `Registration failed: email is required`;
-                                                           console.log(errmessage);
-                                                           ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
-                                                           return;
+                                                            console.log(errmessage);
+                                                            ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                             return;
                                                        }
                                                        if (!name || !name.trim()) {
                                                            let errmessage = `Registration failed: bot name is required`;
-                                                           console.log(errmessage);
-                                                           ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
-                                                           return;
+                                                            console.log(errmessage);
+                                                            ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                             return;
                                                        }
                                                        // Ensure unique display names (no conflicting bot names)
                                                        const nameConflict = Object.values(players).some(p => p.name && p.name.trim() === name.trim());
-                                                       if (nameConflict) {
+                                                        if (nameConflict) {
                                                            let errmessage = `Registration failed: bot name "${name}" is already taken`;
-                                                           console.log(errmessage);
-                                                           ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
-                                                           return;
-                                                       }
+                                                            console.log(errmessage);
+                                                            ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                             return;
+                                                        }
 
                                                     // Validate code size
                                                     if (code.length > CONFIG.maxCodeSize) {
@@ -482,13 +504,13 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                         try {
                                                             console.log(`Compiling Bot code for player: ${name} (${email}) to check for syntax errors...`);
                                                              const botScript = new vm.Script(botCodeString);
-                                                              console.log(`Creating context`);
+                                                              console.log(`Creating {} context`);
                                                                const context = vm.createContext({});
-                                                                console.log(`Running Bot code in context with timeout ${COMPILE_TIME_LIMIT} ms to check for syntax errors and validate play() function...`);
+                                                                console.log(`Running Bot code in {} context with timeout ${COMPILE_TIME_LIMIT} ms to check for syntax errors and validate play() function...`);
                                                                 let compileStartTime = Date.now();
                                                                  botScript.runInContext(context, { timeout: COMPILE_TIME_LIMIT });
                                                                   let compileTime = Date.now() - compileStartTime;
-                                                                  console.log(`Bot code compiling executed successfully in ${compileTime} ms. Validating play() function...`);
+                                                                   console.log(`Bot code compiling executed successfully in ${compileTime} ms. Validating play() function...`);
                                                                    const playFunction = context.play;
                                                                     // --- VALIDATION TESTS ---
                                                                     // Test 1: Check that the type is a function
@@ -520,16 +542,16 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                                             registrationTime: registrationTime
                                                                         };
                                                                       
-                                                                                                                                            // Broadcast updated players list to all clients (so frontends can populate selectors)
-                                                                                                                                            broadcast({ type: 'PLAYERS_LIST', players });
-                                                                                                                                            // Also notify the admin client about the updated players list
-                                                                                                                                            if (adminClient && adminClient.readyState === 1) {
-                                                                                                                                                try { adminClient.send(JSON.stringify({ type: 'PLAYERS_LIST', players })); } catch(e){}
-                                                                                                                                            }
+                                                                          // Broadcast updated players list to all clients (so frontends can populate selectors)
+                                                                          broadcast({ type: 'PLAYERS_LIST', players });
+                                                                          // Also notify the admin client about the updated players list
+                                                                          if (adminClient && adminClient.readyState === 1) {
+                                                                              try { adminClient.send(JSON.stringify({ type: 'PLAYERS_LIST', players })); } catch(e){}
+                                                                          }
                                                                       // Track the client-to-email mapping for disconnection detection
                                                                       clientEmailMap.set(ws, email);
                                                                       emailToClientMap.set(email, ws);
-                                                                      clientHeartbeat.set(ws, Date.now()); // Initialize heartbeat tracking
+                                                                       clientHeartbeat.set(ws, Date.now()); // Initialize heartbeat tracking
                                                                       
                                                                       // Broadcast the new player to all connected clients
                                                                        console.log(`... Registered!  Total players: ${playersNumber}`);
@@ -539,12 +561,12 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                                         // Send detailed registration info to the admin client
                                                                         if (adminClient && adminClient.readyState === 1) {
                                                                             adminClient.send(JSON.stringify({
-                                                                                type: "PLAYER_REGISTERED",
-                                                                                email: email,
-                                                                                name: name,
-                                                                                registrationTime: registrationTime,
-                                                                                status: "connected"
-                                                                            }));
+                                                                                                                type: "PLAYER_REGISTERED",
+                                                                                                                email: email,
+                                                                                                                name: name,
+                                                                                                                registrationTime: registrationTime,
+                                                                                                                status: "connected"
+                                                                                                            }));
                                                                         }
                                                         }
                                                         catch (err) {
