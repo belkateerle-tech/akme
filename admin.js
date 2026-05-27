@@ -208,7 +208,12 @@ function handleServerEvent(data) {
             break;
         
         case 'ADMIN_CONFIG_UPDATED':
-            alert('Configuration updated successfully!');
+            //alert('Configuration updated successfully!');
+            let message = 'Configuration updated successfully at ' + new Date().toLocaleString() + '!\n';
+             console.log(message);
+             const configUpdateDisplay = document.getElementById('config-update-display');
+              let configUpdateContent = message+ configUpdateDisplay.textContent ;
+               configUpdateDisplay.textContent = configUpdateContent;
             break;
         
         case 'ADMIN_BOT_CODE_RESPONSE':
@@ -474,15 +479,15 @@ function newTournament() {
  */
 function updateConfiguration() {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-        alert('Not connected to server');
-        return;
+        alert('Not connected to server - refresh the page and login again');
+         return;
     }
     
     const pilesInput = document.getElementById('config-piles').value;
     const forbiddenInput = document.getElementById('config-forbidden').value;
     const baseTimeInput = document.getElementById('config-baseTime').value;
-    const moveDelayInput = parseInt(document.getElementById('config-moveDelay').value) || 100;
-    const matchDelayInput = parseInt(document.getElementById('config-matchDelay').value) || 2000;
+    const moveDelayInput = +(document.getElementById('config-moveDelay').value) /*|| 100*/;
+    const matchDelayInput = +(document.getElementById('config-matchDelay').value)/* || 2000*/;
     
     // Parse inputs
     const piles = pilesInput.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
@@ -492,20 +497,20 @@ function updateConfiguration() {
     
     if (piles.length === 0) {
         alert('Please enter at least one pile size');
-        return;
+         return;
     }
     
     ws.send(JSON.stringify({
-        type: 'ADMIN_UPDATE_CONFIG',
-        config: {
-            piles,
-            forbidden,
-            baseTime,
-            educational,
-            moveDelayMs: moveDelayInput,
-            matchDelayMs: matchDelayInput
-        }
-    }));
+                            type  : 'ADMIN_UPDATE_CONFIG',
+                            config: {
+                                     piles,
+                                     forbidden,
+                                     baseTime,
+                                     educational,
+                                     moveDelayMs: moveDelayInput,
+                                     matchDelayMs: matchDelayInput
+                                   }
+                           }));
     
     console.log('Sent config update:', { piles, forbidden, baseTime, moveDelayMs: moveDelayInput, matchDelayMs: matchDelayInput });
 }

@@ -200,6 +200,10 @@ let MAX_CODE_SIZE = 4096; // Maximum size for each bot's code in characters
 let NUMBER_OF_GAMES_PER_MATCH = 10; // Number of games to play per match
 let MOVE_DELAY_MS = 100; // Delay between moves in milliseconds to slow down the tournament for better visualization on the dashboard
 let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down the tournament for better visualization on the dashboard
+
+
+
+
           wss.on('connection', 
              //---------------------------------------------------------------------            
             // When a new game-clients connects, send them the tournament start time delta if ready
@@ -386,59 +390,9 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                     return;
                                               }
                                           }
-                                          /*
-                                           //for testing purposes, allow clients to request starting the tournament immediately instead of waiting for the scheduled time
-                                           if (data.type === "START_TOURNAMENT_REQUEST") {
-                                               console.log("Tournament start requested by a client.");
-                                                // If tournament hasn't started yet -- clear the scheduled start timeout if it exists and start startChampionship immediately
-                                                if (!tournamentStarted) {
-                                                    if (startTimeout) {
-                                                        clearTimeout(startTimeout);
-                                                         startTimeout = null;
-                                                    }
-                                                     startChampionship();// Main function to start the tournament, run matches, and broadcast results
-                                                }
-                                           }
-                                           else if (data.type === "PAUSE_TOURNAMENT_REQUEST") {
-                                               console.log("Tournament pause requested by a client.");
-                                                if (tournamentStarted && !isPaused) {
-                                                    isPaused = true;
-                                                     broadcast({ type: "CONTEST_PAUSED" });
-                                                     console.log("Tournament paused!");
-                                                }
-                                           }
-                                           else if (data.type === "RESUME_TOURNAMENT_REQUEST") {
-                                               console.log("Tournament resume requested by a client.");
-                                                if (tournamentStarted && isPaused) {
-                                                    isPaused = false;
-                                                     broadcast({ type: "CONTEST_RESUMED" });
-                                                     console.log("Tournament resumed!");
-                                                }
-                                           }
-                                           else if (data.type === "NEW_TOURNAMENT_REQUEST") {
-                                               console.log("New tournament requested by a client.");
-                                                if (!tournamentStarted) {
-                                                    // Reset tournament state and players for a new tournament
-                                                    playersNumber = 0;
-                                                     players = {};
-                                                     matchMatrix = {};
-                                                     clientEmailMap.clear();
-                                                     emailToClientMap.clear();
-                                                     if (startTimeout) {
-                                                         clearTimeout(startTimeout);
-                                                          startTimeout = null;
-                                                     }
-                                                     tournamentStartTime = Date.now() + DEFAULT_START_DELAY_MS;
-                                                      console.log(`New tournament scheduled to start at ${new Date(tournamentStartTime).toLocaleString()}`);
-                                                      startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
-                                                      ensureMicrobotsRegistered();
-                                                      broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
-                                                      broadcast({ type: "NEW_CONTEST_BEGINS", players: players, matchMatrix: {}, config: CONFIG, totalGamesPlanned, totalGamesCompleted });
-                                                      broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
-                                                }
-                                           }
-                                           else // Handle player registration via WebSocket
-                                           */
+
+
+
                                                 if (data.type === "REGISTER_PLAYER") {
                                                    const { email, name, code } = data;
                                                     console.log(`beginning Registering player: ${name} (${email}) ...`);
@@ -584,7 +538,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                              delete players[email];
                                                              ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
                                                         }
-                                           }
+                                                }
                                          }
                                       catch (err) {
                                                    console.warn("Received invalid WebSocket message:", err.message);
@@ -722,6 +676,7 @@ let isPaused = false;
                                
                                 // Run a round-robin tournament where each Bot plays against every other Bot
                                 startSeed++; // Change the seed for each tournament to generate different pile configurations and forbidden moves for each tournament, while still maintaining reproducibility if needed by using the same seed. This allows for variety in the game conditions across tournaments, which can make the competition more interesting and challenging for the players, while still allowing for consistent conditions if desired by using a fixed seed.
+/*                                
                                 for (let i = 0; i < playersNumber; i++) {
                                     for (let j = i + 1; j < playersNumber; j++) {
                                         // If the tournament is paused, wait until it's resumed
@@ -732,6 +687,26 @@ let isPaused = false;
                                          await runMatch(emails[i], emails[j]);
                                     }
                                }
+*/
+                               let N= playersNumber;
+                                if(N%2==1)N++; // If odd number of players, add a dummy player for bye rounds in the round-robin scheduling algorithm
+                                 for(let r=0; r<N-1; r++) {
+                                     for(let k=0; k<N/2; k++) {
+                                         let A, B;
+                                          if(k === 0) {
+                                              A = N-1;
+                                              B = r;
+                                          }
+                                          else {
+                                                A = (r + k) % (N-1);
+                                                B = (r - k + N-1) % (N-1);
+                                              }
+
+                                          if(A<playersNumber && B<playersNumber)
+                                              await runMatch(emails[A], emails[B]);     
+
+    }
+}
                                 
                                 console.log("🤖🌟🤡 Championship Ended! ");
                                 getMatchMatrixDisplay()
@@ -806,9 +781,9 @@ let isPaused = false;
                                                                 }
 
                                                                 // Broadcast updated players list so leaderboard updates immediately after every correct move
-                                                                try { broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted }); } catch (e) { }
+                                                                //try { broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted,  }); } catch (e) { }
 
-                                                                broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank });
+                                                                broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank, xorsum: xorSum });
 
                                                                           await delay(MOVE_DELAY_MS); // Slow down move for dashboard viewers
                                            }
@@ -822,6 +797,7 @@ let isPaused = false;
                                                getMatchMatrixDisplay();
                                                 totalGamesCompleted += 1;
                                                 broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: players[winnerEmail].name, totalGamesPlanned, totalGamesCompleted });
+                                                 await delay(MATCH_DELAY_MS); // Slow down match for dashboard viewers
                                    }
             }
             // Bots (player) Code EXECUTION on current state (currentPiles) by the "Referee logics" 
