@@ -29,10 +29,18 @@ let currentTotalGamesCompleted = 0;
              */
             function connectWebSocket(password) {
                                         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-                                         ws = new WebSocket(`${protocol}://${window.location.host}`);
+                                        try {
+                                            ws = new WebSocket(`${protocol}://${window.location.host}`);
+                                        } catch (error) {
+                                            console.error('Error connecting to WebSocket:', error);
+                                            return;
+                                        }
                                                         //------------------------------------------------ 
                                             ws.onopen = () => {
-                                                                console.log('Admin connected to WebSocket');
+                                                                const errorMsg = document.getElementById('login-error');
+                                                                 errorMsg.textContent = `Admin connected to Server at time: ${new Date().toLocaleTimeString()}, try password ....`;
+                                                                 console.log(errorMsg.textContent);
+                                                                  if(password == undefined) return;
                                                                 updateConnectionStatus('Connected', '#00ffcc');
                                                                 ws.send(JSON.stringify({ type: 'ADMIN_LOGIN', password }));
                                                               };
@@ -56,12 +64,14 @@ let currentTotalGamesCompleted = 0;
                                                                     };
                                                          //------------------------------------------------
                                             ws.onclose = () => {
-                                                                console.log('Admin disconnected from WebSocket');
+                                                                const errorMsg = document.getElementById('login-error');
+                                                                 errorMsg.textContent = 'Admin disconnected from Server, time:' + new Date().toLocaleTimeString();
+                                                                 console.log(errorMsg.textContent );
                                                                 updateConnectionStatus('undefined', '#999');
                                                                 const timerEl = document.getElementById('countdown-timer');
-                                                                    if (timerEl) {
+                                                                    
                                                                         timerEl.textContent = 'Admin disconnected from Server';
-                                                                    }
+                                                                    
                                                                 // Attempt to reconnect after 3 seconds
                                                                 setTimeout(connectWebSocket, 3000);
                                                                };

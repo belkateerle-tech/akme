@@ -16,6 +16,19 @@ let myBotCode = null; // Store this client's bot code after registration
 let currentOpponentName = null; // Store current opponent's name
 let currentOpponentCode = null; // Store current opponent's bot code
 let playerBotCodes = {}; // Store all players' bot codes for reference
+let selectedAvatar = null;
+
+const AVATAR_GRID_SIZE = 8;
+const BOT_AVATARS = [
+    '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼',
+    '🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔',
+    '🐧','🦆','🦅','🦉','🦇','🐺','🐗','🐴',
+    '🦄','🐝','🐌','🐙','🦕','🦖','🐳','🐬',
+    '🐟','🐠','🐡','🐢','🦋','🐞','🐜','🦗',
+    '🦚','🦜','🦢','🕊️','🦩','🦓','🦌','🦔',
+    '🦦','🦥','🦨','🦡','🦘','🦃','🪲','🐚',
+    '🐲','🐉','🦈','🦑','🦐','🦀','🧸','🦝'
+];
 
     ///  Establish WebSocket connection to the server . Called when this page loaded  to be ready to receive real-time updates about the tournament and game state
     function connect() {
@@ -39,13 +52,30 @@ let tournamentState = "not_started"; // States: not_started, running, paused, en
 
         ////------------called when user clicks "Register" button, sends registration data to server via WebSocket and shows dashboard on success ----------------------
         function register() {
+                                    const email = document.getElementById('email').value.trim();
+                                    const avatarName = document.getElementById('avatar-name').value.trim();
+                                    const code = document.getElementById('bot-code').value;
+
+                                    if (!email) {
+                                        alert('Please enter your email to register.');
+                                        return;
+                                    }
+                                    if (!avatarName) {
+                                        alert('Please choose a bot avatar before entering the championship.');
+                                        return;
+                                    }
+                                    if (!code || !code.trim()) {
+                                        alert('Please enter your bot code before registering.');
+                                        return;
+                                    }
+
                                     const payload = {
                                                      type: 'REGISTER_PLAYER',
-                                                     email: document.getElementById('email').value,
-                                                     name:  document.getElementById('avatar-name').value,
-                                                     code:  document.getElementById('bot-code').value
-                                                    };
-                                     if (ws && ws.readyState === WebSocket.OPEN) {
+                                                     email,
+                                                     name: avatarName,
+                                                     code
+                                    };
+                                    if (ws && ws.readyState === WebSocket.OPEN) {
                                          ws.send(JSON.stringify(payload));
                                      }
                                      else {
@@ -83,6 +113,7 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                              if (p && p.code) playerBotCodes[p.name] = p.code;
                                                                           });
                                                                           try { initializeBotCodeDropdown(); } catch (e) {}
+                                                                          try { updateAvatarPicker(); } catch (e) {}
                                                                           // Update leaderboard immediately when players list is received
                                                                           try { updateLeaderboard({ players: playerList, matchMatrix: matchMatrix }); } catch (e) {}
                                                                           updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
@@ -605,10 +636,108 @@ function initializeBotCodeDropdown() {
                                };
 }
 
+// Avatar picker support functions
+function getUsedAvatars() {
+    return new Set(Object.values(playerList)
+        .filter(p => p && p.name)
+        .map(p => p.name.trim())
+        .filter(Boolean)
+    );
+}
+
+function buildAvatarPicker() {
+    const picker = document.getElementById('avatar-picker');
+    if (!picker) return;
+    picker.innerHTML = '';
+
+    const usedAvatars = getUsedAvatars();
+    const table = document.createElement('table');
+    table.className = 'avatar-grid';
+
+    for (let row = 0; row < AVATAR_GRID_SIZE; row++) {
+        const tr = document.createElement('tr');
+        for (let col = 0; col < AVATAR_GRID_SIZE; col++) {
+            const index = row * AVATAR_GRID_SIZE + col;
+            const avatar = BOT_AVATARS[index] || '';
+            const td = document.createElement('td');
+            td.className = 'avatar-cell';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'avatar-option';
+            button.innerText = avatar;
+            button.title = avatar ? `Select ${avatar} as your bot avatar` : '';
+            button.dataset.avatar = avatar;
+            if (!avatar || usedAvatars.has(avatar)) {
+                button.disabled = true;
+                button.classList.add('avatar-unavailable');
+            }
+            if (selectedAvatar === avatar) {
+                button.classList.add('avatar-selected');
+            }
+            button.onclick = () => selectAvatar(avatar);
+            td.appendChild(button);
+            tr.appendChild(td);
+        }
+        table.appendChild(tr);
+    }
+    picker.appendChild(table);
+}
+
+function selectAvatar(avatar) {
+    const usedAvatars = getUsedAvatars();
+    if (usedAvatars.has(avatar)) {
+        alert('This avatar is already taken in the current tournament. Please choose another one.');
+        return;
+    }
+    selectedAvatar = avatar;
+    document.getElementById('avatar-name').value = avatar;
+    document.getElementById('avatar-picker-help').innerText = `Selected: ${avatar}. This symbol will be your bot name.`;
+    updateAvatarPicker();
+}
+
+function updateAvatarPicker() {
+    buildAvatarPicker();
+    const help = document.getElementById('avatar-picker-help');
+    const usedCount = getUsedAvatars().size;
+    if (help) {
+        help.innerText = selectedAvatar
+            ? `Selected: ${selectedAvatar}. This symbol will be your bot name.`
+            : `Choose one cheerful symbol. ${usedCount} avatars are already taken in this tournament.`;
+    }
+}
+
 // Call initialization when page loads
 document.addEventListener('DOMContentLoaded', () => {
     initializeCodeHighlighting();
+    initializeAvatarPicker();
+    initializeGameLogToggle();
 });
+
+function initializeAvatarPicker() {
+    selectedAvatar = null;
+    buildAvatarPicker();
+}
+
+function initializeGameLogToggle() {
+    const toggle = document.getElementById('toggle-game-log');
+    const gameLog = document.getElementById('game-log');
+    const label = document.getElementById('toggle-game-log-label');
+    if (!toggle || !gameLog || !label) return;
+
+    gameLog.classList.add('collapsed');
+    toggle.checked = false;
+    label.textContent = 'Show Game Log';
+
+    toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+            gameLog.classList.remove('collapsed');
+            label.textContent = 'Hide Game Log';
+        } else {
+            gameLog.classList.add('collapsed');
+            label.textContent = 'Show Game Log';
+        }
+    });
+}
 
 connect();
 

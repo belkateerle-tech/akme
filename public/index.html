@@ -33,7 +33,13 @@
 
          <div class="input-group">
               <input type="email" id="email" placeholder="Your Google Email" required>
-               <input type="text" id="avatar-name" placeholder="Your Avatar-Bot 🤖 Name" required>
+         </div>
+
+         <div class="input-group">
+              <label for="avatar-name" class="avatar-picker-label">Pick your bot avatar</label>
+             <div id="avatar-picker" class="avatar-picker" aria-live="polite"></div>
+             <input  id="avatar-name" value="?">
+             
          </div>
 
          <br>
@@ -80,7 +86,13 @@
 
          <pre id="piles-display">...</pre>
 
-         <div id="game-log"></div>
+         <div class="game-log-toggle">
+             <input type="checkbox" id="toggle-game-log" aria-controls="game-log">
+             <label for="toggle-game-log" id="toggle-game-log-label">Show Game Log</label>
+         </div>
+
+
+         <div id="game-log" class="collapsed"></div>
         </section>
  
                     <aside class="leaderboard card">

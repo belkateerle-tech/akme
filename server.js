@@ -653,6 +653,8 @@ let isPaused = false;
                                           }
                                 }
     }
+
+                        function mod(x,M) {return ((x%M)+M)%M;} // Modulo function that handles negative numbers correctly, used in the round-robin scheduling algorithm to calculate player pairings based on their indices while ensuring the indices wrap around correctly when they exceed the number of players.
         async function 
          runRounRobinMatches() { // Run a round-robin tournament where each Bot plays against every other Bot. This function can be used for future enhancements, such as allowing for different tournament formats (e.g., double elimination, Swiss system) or for running multiple rounds of the tournament with different configurations. Currently, it simply iterates through all pairs of players and runs matches between them using the runMatch function.    
                                            // Create player list with indices
@@ -688,21 +690,26 @@ let isPaused = false;
                                     }
                                }
 */
+
+/**
+    Round-robin scheduling algorithm to ensure that each player plays against every other player, while also allowing for pausing and resuming the tournament. If the number of players is odd, we add a dummy player to create an even number of players, which allows for a complete round-robin schedule without any player being left out in each round. The algorithm iterates through rounds and pairs players based on their indices, ensuring that each pair of players faces each other exactly once. During the tournament, it checks if the tournament is paused before starting each match, and if so, it waits until the tournament is resumed before proceeding with the matches. This allows for flexibility in managing the tournament flow while ensuring that all matches are completed as scheduled. 
+     012 123 234 340 401   
+     ||| ||| ||| ||| ||| 
+     543 504 510 521 532     
+
+ */
                                let N= playersNumber;
                                 if(N%2==1)N++; // If odd number of players, add a dummy player for bye rounds in the round-robin scheduling algorithm
                                  for(let r=0; r<N-1; r++) {
                                      for(let k=0; k<N/2; k++) {
-                                         let A, B;
-                                          if(k === 0) {
-                                              A = N-1;
-                                              B = r;
-                                          }
-                                          else {
-                                                A = (r + k) % (N-1);
-                                                B = (r - k + N-1) % (N-1);
-                                              }
-
-                                          if(A<playersNumber && B<playersNumber)
+                                         while(isPaused) await delay(1000); // Check pause status every second
+                                        
+                                         let N_ = N-1
+                                          let A = mod(r + k, N_); 
+                                          let B = mod(r - k, N_); 
+                                           if(k === 0) B = N_;
+                                        
+                                            if(A<playersNumber && B<playersNumber)
                                               await runMatch(emails[A], emails[B]);     
 
     }
