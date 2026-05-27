@@ -2,7 +2,7 @@
 
 <img src=https://hackmd.io/_uploads/BJ1MQ3kJGl.png>
 
-## Game Server  is the "Brain" of your project. 
+## Game Server  is the "Brain" of our project. 
 
 
 We have written this `server.js` to be as readable as possible. 
@@ -71,3 +71,35 @@ This script handles the connection to the server and updates the screen when a "
 For any contender their bot code is just a **string** being sent over the internet. On the server, we use `vm.Script` to turn that string back into "living" code. This is a  way  how servers obtains bot codes from gamers.
 
 **To run this in your Codespace** just place files index.html, style.css, script.js in a `/public` folder and server.js in the root!
+
+---
+
+## Troubleshooting: the port is busy
+
+If you see an error like `EADDRINUSE: address already in use :::3000` when running `node server.js`, it means that the port is in use by another process. Quick commands for finding and killing such a process:
+
+- Show the process listening on port 3000:
+
+```bash
+lsof -i :3000 -sTCP:LISTEN -Pn
+```
+
+- Kill a process by PID (replace <PID> with the number found):
+
+```bash
+kill -9 <PID>
+```
+
+- Alternatively (convenient):
+
+```bash
+fuser -k 3000/tcp
+```
+
+- If you want to run the server on a different port temporarily:
+
+```bash
+PORT=3001 node server.js
+```
+
+

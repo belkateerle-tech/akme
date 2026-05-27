@@ -9,6 +9,8 @@ const matchMatrixTable = document.getElementById('match-matrix');
 let playerList = [];
 let matchMatrix = [];
 let playerCount = 0;
+let totalGamesPlanned = 0;
+let totalGamesCompleted = 0;
 let myBotName = null; // Store this client's bot name after registration
 let myBotCode = null; // Store this client's bot code after registration
 let currentOpponentName = null; // Store current opponent's name
@@ -62,6 +64,30 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                            setDeadlineFromDelta(data.delta);
                                                                             return;
                                           }
+                                                                      if (data.type === 'CONFIG' || data.type === 'CONFIG_UPDATED') {
+                                                                          currenConfig = data.config;
+                                                                          // Rebuild bot selector when config changes
+                                                                          try { initializeBotCodeDropdown(); } catch (e) {}
+                                                                          return;
+                                                                      }
+                                                                      if (data.type === 'PLAYERS_LIST') {
+                                                                          playerList = data.players || {};
+                                                                          if (typeof data.totalGamesPlanned === 'number') {
+                                                                              totalGamesPlanned = data.totalGamesPlanned;
+                                                                          }
+                                                                          if (typeof data.totalGamesCompleted === 'number') {
+                                                                              totalGamesCompleted = data.totalGamesCompleted;
+                                                                          }
+                                                                          // Update stored bot codes
+                                                                          Object.values(playerList).forEach(p => {
+                                                                             if (p && p.code) playerBotCodes[p.name] = p.code;
+                                                                          });
+                                                                          try { initializeBotCodeDropdown(); } catch (e) {}
+                                                                          // Update leaderboard immediately when players list is received
+                                                                          try { updateLeaderboard({ players: playerList, matchMatrix: matchMatrix }); } catch (e) {}
+                                                                          updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
+                                                                          return;
+                                                                      }
                                           
                                           if (data.type === "REGISTRATION_SUCCESS") {
                                                                                 myBotName = document.getElementById('avatar-name').value;
@@ -82,6 +108,12 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                               if (data.type === "TOURNAMENT_STARTED") {
                                                                                         playerList = data.players;
                                                                                          playerCount = playerList.length;
+                                                                                         if (typeof data.totalGamesPlanned === 'number') {
+                                                                                             totalGamesPlanned = data.totalGamesPlanned;
+                                                                                         }
+                                                                                         if (typeof data.totalGamesCompleted === 'number') {
+                                                                                             totalGamesCompleted = data.totalGamesCompleted;
+                                                                                         }
                                                                                          //console.log("Tournament started! Players:", playerList);
                                                                                         matchMatrix = data.matchMatrix;
                                                                                          //console.log("Initial matrix:", matchMatrix);
@@ -97,6 +129,7 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                                           if (deadlineText) 
                                                                                               deadlineText.innerText = "Contest starting now!";
                                                                                           
+                                                                                          updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
                                                                                           data.config && logEvent(`Tournament configuration: ${JSON.stringify(data.config)}`);
                                                                                            currenConfig = data.config;
                                                                                            tournamentState = "running";
@@ -124,7 +157,14 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                               
                                               if (data.type === "END") {
                                                                          tournamentState = "ended";
+                                                                         if (typeof data.totalGamesPlanned === 'number') {
+                                                                             totalGamesPlanned = data.totalGamesPlanned;
+                                                                         }
+                                                                         if (typeof data.totalGamesCompleted === 'number') {
+                                                                             totalGamesCompleted = data.totalGamesCompleted;
+                                                                         }
                                                                          updateLeaderboard(data);
+                                                                         updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
                                                                          if (deadlineText) 
                                                                              deadlineText.innerText = "Current Contest ended now";
                                                                          logEvent("🏆 TOURNAMENT OVER!");
@@ -136,16 +176,29 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                                       deadlineText.innerText = "New Contest begins";
                                                                                   playerList = data.players;
                                                                                   playerCount = playerList.length;
+                                                                                  if (typeof data.totalGamesPlanned === 'number') {
+                                                                                      totalGamesPlanned = data.totalGamesPlanned;
+                                                                                  }
+                                                                                  if (typeof data.totalGamesCompleted === 'number') {
+                                                                                      totalGamesCompleted = data.totalGamesCompleted;
+                                                                                  }
                                                                                   matchMatrix = data.matchMatrix;
                                                                                   renderMatchMatrix(matchMatrix, playerList);
                                                                                   currenConfig = data.config;
+                                                                                  updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
                                                                                   logEvent("🎊 NEW CONTEST STARTS!");
                                               }
                                               
                                               if (data.type === "CURRENT_FIGHT") {
                                                                                   const fight = data.fight;
                                                                                    currentFightText.innerHTML = `⚔️ <strong>${fight.playerA}</strong> vs <strong>${fight.playerB}</strong> (Game ${fight.game}/${fight.totalGames})`;
-                                                                                   
+                                                                                   if (typeof data.totalGamesPlanned === 'number') {
+                                                                                       totalGamesPlanned = data.totalGamesPlanned;
+                                                                                   }
+                                                                                   if (typeof data.totalGamesCompleted === 'number') {
+                                                                                       totalGamesCompleted = data.totalGamesCompleted;
+                                                                                   }
+                                                                                   updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
                                                                                    // Determine opponent name
                                                                                    currentOpponentName = (fight.playerA === myBotName) ? fight.playerB : fight.playerA;
                                                                                    currentOpponentCode = playerBotCodes[currentOpponentName] || null;
@@ -157,7 +210,14 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                               }
                                               
                                               if (data.type === "MATCH_UPDATE") {
+                                                                         if (typeof data.totalGamesPlanned === 'number') {
+                                                                             totalGamesPlanned = data.totalGamesPlanned;
+                                                                         }
+                                                                         if (typeof data.totalGamesCompleted === 'number') {
+                                                                             totalGamesCompleted = data.totalGamesCompleted;
+                                                                         }
                                                                          updateLeaderboard(data);
+                                                                         updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
                                                                          logEvent(`✅ Winner is ${data.winnerName}`);
                                               }
                                               
@@ -243,7 +303,17 @@ var countdownInterval=null;
                         logEvent("🏁 Contest begins!");
                     }
 
-
+            function updateProgressDisplay(completed, planned) {
+                        const progressEl = document.getElementById('game-progress');
+                        const gamesCompleted = Number(completed) || 0;
+                        const gamesPlanned = Number(planned) || 0;
+                        const percent = gamesPlanned > 0 ? ((gamesCompleted / gamesPlanned) * 100).toFixed(2) : '0.00';
+                        const displayText = `Games completed: ${gamesCompleted} / ${gamesPlanned} (${percent}%)`;
+                        if (progressEl) {
+                            progressEl.innerText = displayText;
+                        }
+                        logEvent(`📊 Progress: ${displayText}`);
+            }
 
             // Function to update the piles display based on the current game state
             function updatePiles(data) {
@@ -283,63 +353,77 @@ var countdownInterval=null;
                                                      const body = document.getElementById('leaderboard-body');
                                                       body.innerHTML = '';
                                                        Object.values(players)
-                                                           .sort((a,b) => b.score - a.score)
-                                                                .forEach(p => {
-                                                                               //console.log("Updating leaderboard with player:", p); 
-                                                                               body.innerHTML += `<tr><td>${p.name}</td><td>${p.score}</td><td>${p.timeBank}ms</td></tr>`;
-                                                                              }
-                                                                        );
+                                                           .sort((a, b) => {
+                                                                             // Primary: score (desc)
+                                                                             if (b.score !== a.score) return b.score - a.score;
+                                                                                 // Secondary: timeBank (desc). Ensure numeric comparison with fallback 0
+                                                                                 const tbA = Number(a.timeBank) || 0;
+                                                                                 const tbB = Number(b.timeBank) || 0;
+                                                                                  return tbB - tbA;
+                                                           })
+                                                           .forEach(p => {
+                                                               const relIR = p.nMoves ? ((Number(p.iRate) || 0) / Number(p.nMoves) * 100).toFixed(2) : '0.00';
+                                                               body.innerHTML += `<tr><td>${p.name}</td><td>${p.score}</td><td>${p.timeBank}ms</td><td>${relIR}%</td></tr>`;
+                                                           });
                 }
+
+                function getPlayersArray(players) {
+                    return Object.values(players)
+                        .slice()
+                        .sort((a, b) => (Number(a.idx) || 0) - (Number(b.idx) || 0));
+                }
+
                 // Function to render the match matrix table showing wins between players 
                 function renderMatchMatrix(matrixEntries, players) {
-                                                                    if (matchMatrixTable.innerHTML.trim() == "") generateMatchMatrixTable(players);
-        
-                                                                       const playersData = Object.values(players); 
-                                                                        const M = playersData.length;
-                                                                         for (let i = 0; i < M; i++) 
-                                                                              for (let j = 0; j < M; j++) {    
-                                                                                   let id = `${i}*${j}`
-                                                                                    let cell = document.getElementById(id);
-                                                                                    let winsA = matrixEntries[i][j].winsA;
-                                                                                      cell.innerHTML = `${winsA}`;
-                                                                              }        
+                                                                       const playersData = getPlayersArray(players);
+                                                                       const M = playersData.length;
+                                                                       const tableExists = matchMatrixTable.querySelector('table');
+                                                                       const rowCount = tableExists ? matchMatrixTable.querySelectorAll('tbody tr').length : 0;
+                                                                       const colCount = tableExists ? matchMatrixTable.querySelectorAll('thead th').length - 1 : 0;
+                                                                       if (!tableExists || rowCount !== M || colCount !== M) {
+                                                                           generateMatchMatrixTable(players);
+                                                                       }
+
+                                                                       for (let i = 0; i < M; i++) {
+                                                                           for (let j = 0; j < M; j++) {
+                                                                               const id = `${i}*${j}`;
+                                                                               const cell = document.getElementById(id);
+                                                                               const winsA = matrixEntries && matrixEntries[i] && matrixEntries[i][j] ? matrixEntries[i][j].winsA : 0;
+                                                                               if (cell) {
+                                                                                   cell.innerHTML = `${winsA}`;
+                                                                               }
+                                                                           }
+                                                                       }
                 }
                     // Function to generate the initial empty match matrix table with given player names as headers               
                     function generateMatchMatrixTable(players) {
-                                                                if (matchMatrixTable.innerHTML.trim() !== "") {
-                                                                     console.log("Match Matrix Table exists already :", matchMatrixTable);
-                                                                      return;           
-                                                                 }
-            
-                                                                     const M = Object.keys(players).length;
-                                                                     const playersData = Object.values(players); 
-                                                                      const names = playersData    .map(p => p.name);
+                                                                     const playersData = getPlayersArray(players);
+                                                                     const M = playersData.length;
                                                                      let cells = '<center><table id="match-matrix-table">';
-        
+
                                                                       cells += '<thead>';
-                                                                       cells+= `<th> ⚡️ </th>`;
-                                                                       for (let i = 0; i < M; i++) 
-                                                                             cells+= `<th>${names[i]}</th>`;
+                                                                       cells += `<th> ⚡️ </th>`;
+                                                                       for (let i = 0; i < M; i++) {
+                                                                             cells += `<th>${playersData[i].name}</th>`;
+                                                                       }
                                                                         cells += '</thead>';
-        
+
                                                                          cells += '<tbody>';
                                                                           for (let i = 0; i < M; i++) {    
                                                                                cells += '<tr>';
-                                                                                cells += `<th>${names[i]}</th>`;
+                                                                                cells += `<th>${playersData[i].name}</th>`;
                                                                                  for (let j = 0; j < M; j++) {    
-                                                                                      let id = `${i}*${j}`
-                                                                                       cells += `<td><span id=${id}>?</span></td>`;
+                                                                                      let id = `${i}*${j}`;
+                                                                                       cells += `<td><span id="${id}">?</span></td>`;
                                                                                  }
                                                                                   cells += '</tr>';
                                                                           }
                                                                            cells += '</tbody>';
-        
+
                                                                             cells += '</table></center>';  
-        
+
                                                                              matchMatrixTable.innerHTML = cells;
-            
-                    }
-        
+                }
 
             // Utility function to log events in the game log  
             function logEvent(msg) {
@@ -347,45 +431,31 @@ var countdownInterval=null;
                                      log.innerHTML = `<div>> ${msg}</div>` + log.innerHTML;
             }
 
-
 // Example bot code for the coin game
-const NumOfCodeExamples=2
 let CodeExample = [
-`
-// piles:     array of integers  (coins) representing the current state of the game
-// forbidden: array of forbidden moves
-// context:   { mode: CONFIG.mode, timeRemaining: player.timeBank } 
-//                    CONFIG.mode can be "NORMAL" or "GIVEAWAY" (see rules for details)
-//OUTPUTS: Return an object { pileIndex: target, count: N };
-//For example { pileIndex: 0, count: 1 } represents Bot's  want to take 1 coin from pile 0 
- 
- function play(piles, forbidden, context) {
-               let target =0, N=0; 
-                target = piles.findIndex(p => p > 0);
-                 if(piles[target]== 1) N = 1;
-                 else                  N = 2;
-                  return { pileIndex: target, count: N }; 
- }`,
- `
-// piles:     array of integers  (coins) representing the current state of the game
-// forbidden: array of forbidden moves
-// context:   { mode: CONFIG.mode, timeRemaining: player.timeBank } 
-//                    CONFIG.mode can be "NORMAL" or "GIVEAWAY" (see rules for details)
-//OUTPUTS: Return an object { pileIndex: target, count: N };
-//For example { pileIndex: 0, count: 1 } represents Bot's  want to take 1 coin from pile 0 
- 
- function play(piles, forbidden, context) {
-               // TO DO 
-               let i=0, c=0;
-                for(i; i<piles.length; i++)
-                    if(piles[i]>0) break;
-                
-                if(piles[i]== 1) c = 1;
-                else             c = 1;
-                 return { pileIndex: i, count: c }; 
- }`
-
-]
+`function play(piles, forbidden, context) {
+    const target = piles.findIndex(p => p > 0);
+    const count = target >= 0 && !forbidden.includes(1) ? 1 : 1;
+    return { pileIndex: target, count };
+}`,
+`function play(piles, forbidden, context) {
+    const target = piles.findIndex(p => p > 0);
+    let count = 1;
+    if (target >= 0 && piles[target] > 1 && !forbidden.includes(2)) {
+        count = 2;
+    }
+    return { pileIndex: target, count };
+}`,
+`function play(piles, forbidden, context) {
+    const target = piles.findIndex(p => p > 0);
+    let count = 1;
+    if (target >= 0 && piles[target] > 2 && !forbidden.includes(3)) {
+        count = 3;
+    }
+    return { pileIndex: target, count };
+}`
+];
+ let NumOfCodeExamples= CodeExample.length;
 
 // Initialize ws connection when page loads
 // Initialize code syntax highlighting for bot code textarea
@@ -394,7 +464,7 @@ function initializeCodeHighlighting() {
     const pre          = document.getElementById('bot-code-highlight');
     const code         = document.getElementById('bot-code-highlight-content');
      if (!botCodeInput || !pre || !code) return;
-        let exampleIndex = Math.random()*2 |0;
+        let exampleIndex = Math.random()*NumOfCodeExamples |0;
         botCodeInput.value = CodeExample[exampleIndex];
         code.textContent   = CodeExample[exampleIndex];
 
@@ -458,36 +528,61 @@ function initializeBotCodeDropdown() {
     const selector = document.getElementById('bot-code-selector');
     const viewer = document.getElementById('bot-code-viewer');
     const displayCode = document.getElementById('displayed-bot-code');
-    
-    if (!selector) return;
-    
-    selector.addEventListener('change', (e) => {
-        const value = e.target.value;
-        
-        if (value === 'current' && myBotCode) {
-            displayCode.textContent = myBotCode;
-            viewer.classList.remove('hidden');
-            if (window.hljs) {
-                delete displayCode.dataset.highlighted;
-                window.hljs.highlightElement(displayCode);
-            }
-        } else if (value === 'opponent' && currentOpponentCode) {
-            displayCode.textContent = currentOpponentCode;
-            viewer.classList.remove('hidden');
-            if (window.hljs) {
-                delete displayCode.dataset.highlighted;
-                window.hljs.highlightElement(displayCode);
-            }
-        } else if (value === 'opponent' && !currentOpponentCode) {
-            viewer.classList.add('hidden');
-            displayCode.textContent = '';
-            logEvent('Opponent bot code not yet available');
-        } else {
-            viewer.classList.add('hidden');
-            displayCode.textContent = '';
+    const dropdownContainer = document.querySelector('.bot-code-dropdown');
+
+    if (!selector || !dropdownContainer) return;
+
+    function rebuildOptions() {
+        selector.innerHTML = '';
+
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '-- Open/Close Code --';
+        selector.appendChild(defaultOpt);
+
+        if (currenConfig && currenConfig.educational && playerList) {
+            Object.values(playerList)
+                .filter(p => p && p.name)
+                .forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.textContent = p.name;
+                    selector.appendChild(opt);
+                });
         }
-    });
-}    
+    }
+
+    function updateVisibility() {
+        const educationalMode = currenConfig && currenConfig.educational;
+        if (educationalMode) {
+            dropdownContainer.style.display = '';
+           viewer.classList.remove("hidden");
+        } else {
+            dropdownContainer.style.display = 'none';
+            viewer.classList.add('hidden');
+            selector.value = '';
+        }
+    }
+
+    rebuildOptions();
+    updateVisibility();
+
+    selector.onchange = (e) => {
+                                const value = e.target.value;
+                                viewer.classList.add('hidden');
+                                 if (value) {
+                                    const code = playerBotCodes[value];
+                                     displayCode.textContent = code;
+                                     viewer.classList.remove('hidden');
+                                      delete displayCode.dataset.highlighted;
+                                       window.hljs && window.hljs.highlightElement(displayCode);
+                                 }
+                                 else {
+                                        //viewer.classList.add('hidden');
+                                        displayCode.textContent = '';
+                                      }
+                               };
+}
 
 // Call initialization when page loads
 document.addEventListener('DOMContentLoaded', () => {

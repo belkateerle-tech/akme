@@ -54,17 +54,20 @@
  
      <main id="dashboard-view" class="hidden">
        <div class="dashboard-header">
+
          <div class="bot-code-dropdown">
-           <label for="bot-code-selector">View Bot Codes:</label>
+            <label for="bot-code-selector">View Bot Codes:</label>
            <select id="bot-code-selector">
-             <option value="">-- Select a player --</option>
-             <option value="current">My Bot Code</option>
-             <option value="opponent">Opponent Bot Code</option>
+             <option value="">-- Open/Close Code --</option>
+             <option value="bot"    >🤖</option>
+             <option value="clown"  >🤡</option>
+             <option value="snowman">☃️</option>
            </select>
-           <div id="bot-code-viewer" class="bot-code-viewer hidden">
-             <pre><code id="displayed-bot-code" class="language-javascript"></code></pre>
-           </div>
+            <div id="bot-code-viewer" class="bot-code-viewer hidden">
+              <pre><code id="displayed-bot-code" class="language-javascript"></code></pre>
+            </div>
          </div>
+
        </div>
        <div class="game-container">
  
@@ -84,10 +87,11 @@
                      <center>
                       
                      <h2>Leaderboard</h2>
+                     <div id="game-progress" class="game-progress">Games completed: 0 / 0 (0.00%)</div>
 
                      <table id="score-table">
                       <thead>
-                       <tr><th>Player</th><th>Score</th><th>Bank</th></tr>
+                       <tr><th>Player</th><th>Score</th><th>Bank</th><th>Intellect</th></tr>
                       </thead>
 
                       <tbody id="leaderboard-body"></tbody>
