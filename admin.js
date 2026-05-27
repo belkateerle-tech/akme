@@ -6,6 +6,8 @@ let playerEmails = []; // Track player emails for dropdown
 let tournamentStatus = "not_started";
 let countdownInterval = null;
 let countdownTime = 0;
+let currentTotalGamesPlanned = 0;
+let currentTotalGamesCompleted = 0;
 
         
         // --------------------Authenticate the admin with password------<button onclick="authenticateAdmin()">Login</button>
@@ -110,6 +112,16 @@ function handleServerEvent(data) {
             // console.log('New player registered:', data.name);
             // For admin, we'll update the list when we get tournament updates
             break;
+
+        case 'PLAYERS_LIST':
+            if (data.players) {
+                players = data.players;
+                updatePlayerTable();
+            }
+            if (typeof data.totalGamesPlanned === 'number' || typeof data.totalGamesCompleted === 'number') {
+                updateGameProgress(data.totalGamesCompleted || currentTotalGamesCompleted, data.totalGamesPlanned || currentTotalGamesPlanned);
+            }
+            break;
         
         case 'TOURNAMENT_STARTED':
             tournamentStatus = 'running';
@@ -118,6 +130,9 @@ function handleServerEvent(data) {
             if (data.players) {
                 Object.assign(players, data.players);
                 updatePlayerTable();
+            }
+            if (typeof data.totalGamesPlanned === 'number' || typeof data.totalGamesCompleted === 'number') {
+                updateGameProgress(data.totalGamesCompleted || currentTotalGamesCompleted, data.totalGamesPlanned || currentTotalGamesPlanned);
             }
             updateStatus('Tournament Running', '#00ffcc');
             break;
@@ -134,12 +149,18 @@ function handleServerEvent(data) {
         
         case 'END':
             tournamentStatus = 'ended';
+            if (typeof data.totalGamesPlanned === 'number' || typeof data.totalGamesCompleted === 'number') {
+                updateGameProgress(data.totalGamesCompleted || currentTotalGamesCompleted, data.totalGamesPlanned || currentTotalGamesPlanned);
+            }
             updateStatus('Tournament Ended', '#ff6b6b');
             break;
         
         case 'NEW_CONTEST_BEGINS':
             players = {};
             updatePlayerTable();
+            if (typeof data.totalGamesPlanned === 'number' || typeof data.totalGamesCompleted === 'number') {
+                updateGameProgress(data.totalGamesCompleted || currentTotalGamesCompleted, data.totalGamesPlanned || currentTotalGamesPlanned);
+            }
             updateStatus('New Tournament Ready', '#00ffcc');
             countdownTime = 15 * 60 * 1000; // Reset to 15 minutes
             startCountdown();
@@ -164,6 +185,9 @@ function handleServerEvent(data) {
                 document.getElementById('config-forbidden').value = data.config.forbidden.join(',');
                 document.getElementById('config-baseTime') .value = data.config.baseTime;
                 document.getElementById('config-educational').checked = data.config.educational;
+            }
+            if (typeof data.totalGamesPlanned === 'number' || typeof data.totalGamesCompleted === 'number') {
+                updateGameProgress(data.totalGamesCompleted || currentTotalGamesCompleted, data.totalGamesPlanned || currentTotalGamesPlanned);
             }
             console.log(`before  if (data.tournamentStartTime)...  data.tournamentStartTime:`,data.tournamentStartTime);
             if (data.tournamentStartTime) {
@@ -272,6 +296,16 @@ function updateConnectionStatus(status, color = '#00ffcc') {
     const statusEl = document.getElementById('connection-status');
     statusEl.textContent = status;
     statusEl.style.color = color;
+}
+
+function updateGameProgress(completed, planned) {
+    currentTotalGamesCompleted = Number(completed) || 0;
+    currentTotalGamesPlanned = Number(planned) || 0;
+    const percent = currentTotalGamesPlanned > 0 ? ((currentTotalGamesCompleted / currentTotalGamesPlanned) * 100).toFixed(2) : '0.00';
+    const progressEl = document.getElementById('game-progress');
+    if (progressEl) {
+        progressEl.textContent = `${currentTotalGamesCompleted} / ${currentTotalGamesPlanned} (${percent}%)`;
+    }
 }
 
 /**

@@ -80,7 +80,7 @@ const PORT = 3000;
                                      startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
                                      broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
                                      // Broadcast current players list (includes microbots)
-                                     broadcast({ type: 'PLAYERS_LIST', players });
+                                     broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
                                      
                                      // Start heartbeat mechanism every 5 seconds
                                    const HEARTBEAT_TIMEOUT = 5000;
@@ -176,6 +176,7 @@ const CODE_EXAMPLES = [
                                                                                                         };
                                                                                }
                                                                               });
+                    totalGamesPlanned = calculateTotalGamesToPlay();
                 }
 var adminClient = null; // Single authenticated admin WebSocket connection
 var clientEmailMap = new Map(); // Map from WebSocket client to player email
@@ -189,6 +190,8 @@ let tournamentStartTime = null; // Timestamp for when the tournament is schedule
 let startTimeout        = null; // To allow manual start before the scheduled time if needed
 let matchMatrix         = {}; // Stores results of matches for the matrix display
 // matchMatrix structure: { "emailA|emailB": { playerA, playerB, winsA, winsB, bonusA, bonusB } }
+let totalGamesPlanned   = 0;  // Calculated when players register and when a tournament starts
+let totalGamesCompleted = 0;  // Incremented after each finished game
 
 let DEFAULT_START_DELAY_MS = 15 * 60 * 1000; // 15 minutes after server start
 let MATCH_TIME_LIMIT = 100; // Time limit for each match in milliseconds (can be adjusted as needed)
@@ -208,7 +211,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                            ws.send(startTimeString);
                            // Also send current config and players so clients can populate UI immediately
                            try { ws.send(JSON.stringify({ type: 'CONFIG', config: CONFIG })); } catch(e){}
-                           try { ws.send(JSON.stringify({ type: 'PLAYERS_LIST', players })); } catch(e){}
+                           try { ws.send(JSON.stringify({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted })); } catch(e){}
                         }
                         // Working with messages from clients, such as a request to start the tournament early           
                    ws.on('message', 
@@ -249,6 +252,8 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                   players,
                                                   tournamentStarted,
                                                   tournamentStartTime,
+                                                  totalGamesPlanned,
+                                                  totalGamesCompleted,
                                                   config: CONFIG
                                               }));
                                               return;
@@ -273,6 +278,8 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                   players,
                                                   tournamentStarted,
                                                   tournamentStartTime,
+                                                  totalGamesPlanned,
+                                                  totalGamesCompleted,
                                                   config: CONFIG
                                               }));
                                               return;
@@ -426,8 +433,8 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                       startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
                                                       ensureMicrobotsRegistered();
                                                       broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
-                                                      broadcast({ type: "NEW_CONTEST_BEGINS", players: players, matchMatrix: {}, config: CONFIG });
-                                                      broadcast({ type: 'PLAYERS_LIST', players });
+                                                      broadcast({ type: "NEW_CONTEST_BEGINS", players: players, matchMatrix: {}, config: CONFIG, totalGamesPlanned, totalGamesCompleted });
+                                                      broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
                                                 }
                                            }
                                            else // Handle player registration via WebSocket
@@ -542,11 +549,13 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                                             registrationTime: registrationTime
                                                                         };
                                                                       
-                                                                          // Broadcast updated players list to all clients (so frontends can populate selectors)
-                                                                          broadcast({ type: 'PLAYERS_LIST', players });
+                                                                          // Recalculate planned games after registration
+                                                     totalGamesPlanned = calculateTotalGamesToPlay();
+                                                     // Broadcast updated players list to all clients (so frontends can populate selectors)
+                                                                          broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
                                                                           // Also notify the admin client about the updated players list
                                                                           if (adminClient && adminClient.readyState === 1) {
-                                                                              try { adminClient.send(JSON.stringify({ type: 'PLAYERS_LIST', players })); } catch(e){}
+                                                                              try { adminClient.send(JSON.stringify({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted })); } catch(e){}
                                                                           }
                                                                       // Track the client-to-email mapping for disconnection detection
                                                                       clientEmailMap.set(ws, email);
@@ -676,7 +685,9 @@ let isPaused = false;
                                try {
                                     // Reset Intellectual Rate and move count for all players at tournament start
                                     Object.values(players).forEach(p => { p.iRate = 0; p.nMoves = 0; });
-                                    broadcast({ type: 'PLAYERS_LIST', players });
+                                    totalGamesPlanned = calculateTotalGamesToPlay();
+                                    totalGamesCompleted = 0;
+                                    broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
 
                                     await runRounRobinMatches(); // Main function to run the round-robin matches between all registered players, with the current configuration of piles, forbidden moves, and time limits. This function handles the entire flow of the tournament, including broadcasting updates to the dashboard and saving tournament data for record-keeping. It iterates through all pairs of players, runs matches between them using the runMatch function, and updates the matchMatrix with results for display on the dashboard. After all matches are completed, it broadcasts the final results and resets the tournament state for potential future tournaments.
                                }
@@ -707,7 +718,7 @@ let isPaused = false;
                                
                                // Generate and send initial tournament Matrix
                                generateInitialMatrix();
-                                broadcast({ type: "TOURNAMENT_STARTED", players: players, matchMatrix: Matrix, config: CONFIG });
+                                broadcast({ type: "TOURNAMENT_STARTED", players: players, matchMatrix: Matrix, config: CONFIG, totalGamesPlanned, totalGamesCompleted });
                                
                                 // Run a round-robin tournament where each Bot plays against every other Bot
                                 startSeed++; // Change the seed for each tournament to generate different pile configurations and forbidden moves for each tournament, while still maintaining reproducibility if needed by using the same seed. This allows for variety in the game conditions across tournaments, which can make the competition more interesting and challenging for the players, while still allowing for consistent conditions if desired by using a fixed seed.
@@ -725,7 +736,7 @@ let isPaused = false;
                                 console.log("🤖🌟🤡 Championship Ended! ");
                                 getMatchMatrixDisplay()
                                  console.log("Results:", Matrix);
-                                 broadcast({ type: "END", players, matchMatrix: Matrix });// After all matches are done, broadcast the final results to the dashboard
+                                 broadcast({ type: "END", players, matchMatrix: Matrix, totalGamesPlanned, totalGamesCompleted });// After all matches are done, broadcast the final results to the dashboard
                                   tournamentStarted = false;
          }   
            
@@ -744,7 +755,7 @@ let isPaused = false;
                                           console.log(`Match ${game}/${N} between ${currentFirstPlayerEmail} and ${opponentPlayerEmail}`); 
 
                                          let state = { piles: [...CONFIG.piles], turn: currentFirstPlayerEmail};
-                                           broadcast({ type: "CURRENT_FIGHT", fight: { playerA: botA.name, playerB: botB.name, game, totalGames: N }, config: CONFIG });
+                                           broadcast({ type: "CURRENT_FIGHT", fight: { playerA: botA.name, playerB: botB.name, game, totalGames: N }, totalGamesPlanned, totalGamesCompleted, config: CONFIG });
         
                                           // Main game loop for steps of a single game between two Bots while there are still valid moves to be made (not Game Over)
                                          let currentPlayer; 
@@ -766,7 +777,8 @@ let isPaused = false;
                                                          opponentPlayer.score += 1;
                                                           recordMatchResult(emailA, emailB, opponentPlayerEmail, 0);
                                                            getMatchMatrixDisplay();
-                                                            broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: opponentPlayer.name });
+                                                            totalGamesCompleted += 1;
+                                                            broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: opponentPlayer.name, totalGamesPlanned, totalGamesCompleted });
 
                                                              continue setOfMatches; 
                                                      }
@@ -794,7 +806,7 @@ let isPaused = false;
                                                                 }
 
                                                                 // Broadcast updated players list so leaderboard updates immediately after every correct move
-                                                                try { broadcast({ type: 'PLAYERS_LIST', players }); } catch (e) { }
+                                                                try { broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted }); } catch (e) { }
 
                                                                 broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank });
 
@@ -808,13 +820,10 @@ let isPaused = false;
                                              currentPlayer.score += 1;
                                               recordMatchResult(emailA, emailB, winnerEmail);
                                                getMatchMatrixDisplay();
-                                                broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: players[winnerEmail].name });
-                                                 await delay(MATCH_DELAY_MS);
-
-                                                  
-                                   }// End loop of all games between emailA and emailB
-        }
-
+                                                totalGamesCompleted += 1;
+                                                broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: players[winnerEmail].name, totalGamesPlanned, totalGamesCompleted });
+                                   }
+            }
             // Bots (player) Code EXECUTION on current state (currentPiles) by the "Referee logics" 
             function runBotSafe(player, currentPiles) {
             
@@ -912,6 +921,11 @@ var Matrix = [];
                                               }
                                                return Matrix;
                                               
+            }
+
+            function calculateTotalGamesToPlay() {
+                const N = Object.keys(players).length;
+                return NUMBER_OF_GAMES_PER_MATCH * N * (N - 1) / 2;
             }
 
 

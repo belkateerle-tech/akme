@@ -2,7 +2,7 @@
 
 <img src=https://hackmd.io/_uploads/BJ1MQ3kJGl.png>
 
-## Game Server  is the "Brain" of your project. 
+## Game Server  is the "Brain" of our project. 
 
 
 We have written this `server.js` to be as readable as possible. 
@@ -74,32 +74,32 @@ For any contender their bot code is just a **string** being sent over the intern
 
 ---
 
-## Troubleshooting: порт занят
+## Troubleshooting: the port is busy
 
-Если при запуске `node server.js` вы видите ошибку вида `EADDRINUSE: address already in use :::3000`, это означает, что порт занят другим процессом. Быстрые команды для поиска и завершения такого процесса:
+If you see an error like `EADDRINUSE: address already in use :::3000` when running `node server.js`, it means that the port is in use by another process. Quick commands for finding and killing such a process:
 
-- Показать процесс, слушающий порт 3000:
+- Show the process listening on port 3000:
 
 ```bash
 lsof -i :3000 -sTCP:LISTEN -Pn
 ```
 
-- Убить процесс по PID (замените <PID> на найденный номер):
+- Kill a process by PID (replace <PID> with the number found):
 
 ```bash
 kill -9 <PID>
 ```
 
-- Альтернативно (удобно):
+- Alternatively (convenient):
 
 ```bash
 fuser -k 3000/tcp
 ```
 
-- Если хотите запустить сервер на другом порту временно:
+- If you want to run the server on a different port temporarily:
 
 ```bash
 PORT=3001 node server.js
 ```
 
-Добавление поддержки `PORT` в `server.js` также возможно — сообщите, если желаете, чтобы я это добавил.
+
