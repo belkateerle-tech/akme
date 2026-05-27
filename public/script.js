@@ -16,6 +16,19 @@ let myBotCode = null; // Store this client's bot code after registration
 let currentOpponentName = null; // Store current opponent's name
 let currentOpponentCode = null; // Store current opponent's bot code
 let playerBotCodes = {}; // Store all players' bot codes for reference
+let selectedAvatar = null;
+
+const AVATAR_GRID_SIZE = 8;
+const BOT_AVATARS = [
+    '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼',
+    '🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔',
+    '🐧','🦆','🦅','🦉','🦇','🐺','🐗','🐴',
+    '🦄','🐝','🐌','🐙','🦕','🦖','🐳','🐬',
+    '🐟','🐠','🐡','🐢','🦋','🐞','🐜','🦗',
+    '🦚','🦜','🦢','🕊️','🦩','🦓','🦌','🦔',
+    '🦦','🦥','🦨','🦡','🦘','🦃','🪲','🐚',
+    '🐲','🐉','🦈','🦑','🦐','🦀','🧸','🦝'
+];
 
     ///  Establish WebSocket connection to the server . Called when this page loaded  to be ready to receive real-time updates about the tournament and game state
     function connect() {
@@ -39,13 +52,30 @@ let tournamentState = "not_started"; // States: not_started, running, paused, en
 
         ////------------called when user clicks "Register" button, sends registration data to server via WebSocket and shows dashboard on success ----------------------
         function register() {
+                                    const email = document.getElementById('email').value.trim();
+                                    const avatarName = document.getElementById('avatar-name').value.trim();
+                                    const code = document.getElementById('bot-code').value;
+
+                                    if (!email) {
+                                        alert('Please enter your email to register.');
+                                        return;
+                                    }
+                                    if (!avatarName) {
+                                        alert('Please choose a bot avatar before entering the championship.');
+                                        return;
+                                    }
+                                    if (!code || !code.trim()) {
+                                        alert('Please enter your bot code before registering.');
+                                        return;
+                                    }
+
                                     const payload = {
                                                      type: 'REGISTER_PLAYER',
-                                                     email: document.getElementById('email').value,
-                                                     name:  document.getElementById('avatar-name').value,
-                                                     code:  document.getElementById('bot-code').value
-                                                    };
-                                     if (ws && ws.readyState === WebSocket.OPEN) {
+                                                     email,
+                                                     name: avatarName,
+                                                     code
+                                    };
+                                    if (ws && ws.readyState === WebSocket.OPEN) {
                                          ws.send(JSON.stringify(payload));
                                      }
                                      else {
@@ -83,6 +113,7 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                              if (p && p.code) playerBotCodes[p.name] = p.code;
                                                                           });
                                                                           try { initializeBotCodeDropdown(); } catch (e) {}
+                                                                          try { updateAvatarPicker(); } catch (e) {}
                                                                           // Update leaderboard immediately when players list is received
                                                                           try { updateLeaderboard({ players: playerList, matchMatrix: matchMatrix }); } catch (e) {}
                                                                           updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
@@ -210,15 +241,13 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                               }
                                               
                                               if (data.type === "MATCH_UPDATE") {
-                                                                         if (typeof data.totalGamesPlanned === 'number') {
-                                                                             totalGamesPlanned = data.totalGamesPlanned;
-                                                                         }
-                                                                         if (typeof data.totalGamesCompleted === 'number') {
-                                                                             totalGamesCompleted = data.totalGamesCompleted;
-                                                                         }
-                                                                         updateLeaderboard(data);
-                                                                         updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
-                                                                         logEvent(`✅ Winner is ${data.winnerName}`);
+                                                                                  updateLeaderboard(data);
+                                                                                  totalGamesPlanned   = +data.totalGamesPlanned;
+                                                                                  totalGamesCompleted = +data.totalGamesCompleted;
+                                                                                   updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
+                                                                                  let winnerMessage =`✅ Winner is ${data.winnerName}`
+                                                                                   addWinnerToPiles(winnerMessage)
+                                                                                    logEvent(winnerMessage);
                                               }
                                               
                                               if (data.type === "DISQUALIFIED_FOR_ERROR") {
@@ -234,9 +263,10 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                   if (ws && ws.readyState === WebSocket.OPEN) {
                                                       ws.send(JSON.stringify({ type: "HEARTBEAT_RESPONSE" }));
                                                   }
-                                                  let hljs = window.hljs;
-                                                       hljs.highlightAll(); // Highlight any new code snippets in the log
-                                                  return;
+                                                  //let hljs = window.hljs;
+                                                      // hljs.highlightAll(); // Highlight any new code snippets in the log
+
+                                                   return;
                                               }
 
         }
@@ -305,14 +335,15 @@ var countdownInterval=null;
 
             function updateProgressDisplay(completed, planned) {
                         const progressEl = document.getElementById('game-progress');
+
                         const gamesCompleted = Number(completed) || 0;
                         const gamesPlanned = Number(planned) || 0;
-                        const percent = gamesPlanned > 0 ? ((gamesCompleted / gamesPlanned) * 100).toFixed(2) : '0.00';
-                        const displayText = `Games completed: ${gamesCompleted} / ${gamesPlanned} (${percent}%)`;
-                        if (progressEl) {
-                            progressEl.innerText = displayText;
-                        }
-                        logEvent(`📊 Progress: ${displayText}`);
+                        const  percent = gamesPlanned > 0 ? ((gamesCompleted / gamesPlanned) * 100).toFixed(1) : ' 0.0';
+                        const   displayText = `Games completed: ${gamesCompleted} / ${gamesPlanned} (${percent}%)`;
+                                if (progressEl) {
+                                    progressEl.innerText = displayText;
+                                }
+                                 //logEvent(`📊 Progress: ${displayText}`);
             }
 
             // Function to update the piles display based on the current game state
@@ -336,10 +367,21 @@ var countdownInterval=null;
                                                        pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
                                                  }
                               );
+                               let winnerMessage =`✅ Winner is `;
+                               if(data.winnerName) 
+                                    winnerMessage += data.winnerName;
+                               else winnerMessage = "";
+
+                                pilesString += winnerMessage;    
                 const display = document.getElementById('piles-display');
                   display.innerHTML = pilesString;    
             }
+            function addWinnerToPiles(winnerMessage){
+                                                     const display = document.getElementById('piles-display');
+                                                       display.innerHTML  += winnerMessage;    
 
+            }
+            
 
             // Function to update the leaderboard and match matrix based on the latest tournament state
             function updateLeaderboard(data) {
@@ -376,24 +418,27 @@ var countdownInterval=null;
                 // Function to render the match matrix table showing wins between players 
                 function renderMatchMatrix(matrixEntries, players) {
                                                                        const playersData = getPlayersArray(players);
-                                                                       const M = playersData.length;
-                                                                       const tableExists = matchMatrixTable.querySelector('table');
-                                                                       const rowCount = tableExists ? matchMatrixTable.querySelectorAll('tbody tr').length : 0;
-                                                                       const colCount = tableExists ? matchMatrixTable.querySelectorAll('thead th').length - 1 : 0;
-                                                                       if (!tableExists || rowCount !== M || colCount !== M) {
+                                                                       const  M = playersData.length;
+                                                                       const  tableExists = matchMatrixTable.querySelector('table');
+                                                                       const   rowCount = tableExists ? matchMatrixTable.querySelectorAll('tbody tr').length     : 0;
+                                                                       const   colCount = tableExists ? matchMatrixTable.querySelectorAll('thead th').length - 1 : 0;
+                                                                        if (!tableExists || rowCount !== M /*|| colCount !== M*/) {
                                                                            generateMatchMatrixTable(players);
-                                                                       }
+                                                                        }
 
-                                                                       for (let i = 0; i < M; i++) {
-                                                                           for (let j = 0; j < M; j++) {
-                                                                               const id = `${i}*${j}`;
-                                                                               const cell = document.getElementById(id);
-                                                                               const winsA = matrixEntries && matrixEntries[i] && matrixEntries[i][j] ? matrixEntries[i][j].winsA : 0;
-                                                                               if (cell) {
-                                                                                   cell.innerHTML = `${winsA}`;
-                                                                               }
-                                                                           }
-                                                                       }
+                                                                         for (let i = 0; i < M; i++) {
+                                                                             for (let j = 0; j < M; j++) {
+                                                                                 let id = `${i}*${j}`;
+                                                                                  let cell = document.getElementById(id);
+                                                                                   let  winsA = "."
+                                                                                         if(matrixEntries /*&& matrixEntries[i] && matrixEntries[i][j] */){
+                                                                                            winsA = matrixEntries[i][j].winsA;
+                                                                                             if (cell) 
+                                                                                                 cell.innerHTML = `${winsA}`;
+                                                                                         }       
+                                                                                  
+                                                                             }
+                                                                         }
                 }
                     // Function to generate the initial empty match matrix table with given player names as headers               
                     function generateMatchMatrixTable(players) {
@@ -403,26 +448,26 @@ var countdownInterval=null;
 
                                                                       cells += '<thead>';
                                                                        cells += `<th> ⚡️ </th>`;
-                                                                       for (let i = 0; i < M; i++) {
-                                                                             cells += `<th>${playersData[i].name}</th>`;
-                                                                       }
-                                                                        cells += '</thead>';
-
-                                                                         cells += '<tbody>';
-                                                                          for (let i = 0; i < M; i++) {    
-                                                                               cells += '<tr>';
-                                                                                cells += `<th>${playersData[i].name}</th>`;
-                                                                                 for (let j = 0; j < M; j++) {    
-                                                                                      let id = `${i}*${j}`;
-                                                                                       cells += `<td><span id="${id}">?</span></td>`;
-                                                                                 }
-                                                                                  cells += '</tr>';
-                                                                          }
-                                                                           cells += '</tbody>';
-
-                                                                            cells += '</table></center>';  
-
-                                                                             matchMatrixTable.innerHTML = cells;
+                                                                        for (let i = 0; i < M; i++) 
+                                                                              cells += `<th>${playersData[i].name}</th>`;
+                                                                         cells += '</thead>';
+ 
+                                                                          cells += '<tbody>';
+                                                                           for (let i = 0; i < M; i++) {    
+                                                                                cells += '<tr>';
+                                                                                 cells += `<th>${playersData[i].name}</th>`;
+                                                                                  for (let j = 0; j < M; j++) {    
+                                                                                       let id = `${i}*${j}`;
+                                                                                        let cellContent = (i === j) ? '—' : '0'; 
+                                                                                         cells += `<td><span id="${id}">${cellContent}</span></td>`;
+                                                                                  }
+                                                                                   cells += '</tr>';
+                                                                           }
+                                                                            cells += '</tbody>';
+ 
+                                                                             cells += '</table></center>';  
+ 
+                                                                              matchMatrixTable.innerHTML = cells;
                 }
 
             // Utility function to log events in the game log  
@@ -431,28 +476,33 @@ var countdownInterval=null;
                                      log.innerHTML = `<div>> ${msg}</div>` + log.innerHTML;
             }
 
+
+
+
+
+
 // Example bot code for the coin game
 let CodeExample = [
 `function play(piles, forbidden, context) {
-    const target = piles.findIndex(p => p > 0);
-    const count = target >= 0 && !forbidden.includes(1) ? 1 : 1;
-    return { pileIndex: target, count };
+    let target = piles.findIndex(p => p > 0);
+     let count = target >= 0 && !forbidden.includes(1) ? 1 : 1;
+      return { pileIndex: target, count: count };
 }`,
 `function play(piles, forbidden, context) {
-    const target = piles.findIndex(p => p > 0);
+    let target = piles.findIndex(p => p > 0);
     let count = 1;
-    if (target >= 0 && piles[target] > 1 && !forbidden.includes(2)) {
+     if (target >= 0 && piles[target] > 1 && !forbidden.includes(2)) {
         count = 2;
-    }
-    return { pileIndex: target, count };
+     }
+      return { pileIndex: target, count: count };
 }`,
 `function play(piles, forbidden, context) {
-    const target = piles.findIndex(p => p > 0);
+    let target = piles.findIndex(p => p > 0);
     let count = 1;
-    if (target >= 0 && piles[target] > 2 && !forbidden.includes(3)) {
+     if (target >= 0 && piles[target] > 2 && !forbidden.includes(3)) {
         count = 3;
-    }
-    return { pileIndex: target, count };
+     }
+    return { pileIndex: target, count: count };
 }`
 ];
  let NumOfCodeExamples= CodeExample.length;
@@ -464,9 +514,11 @@ function initializeCodeHighlighting() {
     const pre          = document.getElementById('bot-code-highlight');
     const code         = document.getElementById('bot-code-highlight-content');
      if (!botCodeInput || !pre || !code) return;
+
         let exampleIndex = Math.random()*NumOfCodeExamples |0;
-        botCodeInput.value = CodeExample[exampleIndex];
-        code.textContent   = CodeExample[exampleIndex];
+         let codeText = CodeExample[exampleIndex];
+          botCodeInput.value = codeText;
+          code.textContent   = codeText;
 
             // Update highlighting function
             function updateHighlighting() {
@@ -584,10 +636,108 @@ function initializeBotCodeDropdown() {
                                };
 }
 
+// Avatar picker support functions
+function getUsedAvatars() {
+    return new Set(Object.values(playerList)
+        .filter(p => p && p.name)
+        .map(p => p.name.trim())
+        .filter(Boolean)
+    );
+}
+
+function buildAvatarPicker() {
+    const picker = document.getElementById('avatar-picker');
+    if (!picker) return;
+    picker.innerHTML = '';
+
+    const usedAvatars = getUsedAvatars();
+    const table = document.createElement('table');
+    table.className = 'avatar-grid';
+
+    for (let row = 0; row < AVATAR_GRID_SIZE; row++) {
+        const tr = document.createElement('tr');
+        for (let col = 0; col < AVATAR_GRID_SIZE; col++) {
+            const index = row * AVATAR_GRID_SIZE + col;
+            const avatar = BOT_AVATARS[index] || '';
+            const td = document.createElement('td');
+            td.className = 'avatar-cell';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'avatar-option';
+            button.innerText = avatar;
+            button.title = avatar ? `Select ${avatar} as your bot avatar` : '';
+            button.dataset.avatar = avatar;
+            if (!avatar || usedAvatars.has(avatar)) {
+                button.disabled = true;
+                button.classList.add('avatar-unavailable');
+            }
+            if (selectedAvatar === avatar) {
+                button.classList.add('avatar-selected');
+            }
+            button.onclick = () => selectAvatar(avatar);
+            td.appendChild(button);
+            tr.appendChild(td);
+        }
+        table.appendChild(tr);
+    }
+    picker.appendChild(table);
+}
+
+function selectAvatar(avatar) {
+    const usedAvatars = getUsedAvatars();
+    if (usedAvatars.has(avatar)) {
+        alert('This avatar is already taken in the current tournament. Please choose another one.');
+        return;
+    }
+    selectedAvatar = avatar;
+    document.getElementById('avatar-name').value = avatar;
+    document.getElementById('avatar-picker-help').innerText = `Selected: ${avatar}. This symbol will be your bot name.`;
+    updateAvatarPicker();
+}
+
+function updateAvatarPicker() {
+    buildAvatarPicker();
+    const help = document.getElementById('avatar-picker-help');
+    const usedCount = getUsedAvatars().size;
+    if (help) {
+        help.innerText = selectedAvatar
+            ? `Selected: ${selectedAvatar}. This symbol will be your bot name.`
+            : `Choose one cheerful symbol. ${usedCount} avatars are already taken in this tournament.`;
+    }
+}
+
 // Call initialization when page loads
 document.addEventListener('DOMContentLoaded', () => {
     initializeCodeHighlighting();
+    initializeAvatarPicker();
+    initializeGameLogToggle();
 });
+
+function initializeAvatarPicker() {
+    selectedAvatar = null;
+    buildAvatarPicker();
+}
+
+function initializeGameLogToggle() {
+    const toggle = document.getElementById('toggle-game-log');
+    const gameLog = document.getElementById('game-log');
+    const label = document.getElementById('toggle-game-log-label');
+    if (!toggle || !gameLog || !label) return;
+
+    gameLog.classList.add('collapsed');
+    toggle.checked = false;
+    label.textContent = 'Show Game Log';
+
+    toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+            gameLog.classList.remove('collapsed');
+            label.textContent = 'Hide Game Log';
+        } else {
+            gameLog.classList.add('collapsed');
+            label.textContent = 'Show Game Log';
+        }
+    });
+}
 
 connect();
 

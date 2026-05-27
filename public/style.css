@@ -51,6 +51,71 @@ input {
         font-size: 1em;
         
 }
+#avatar-name {width: 2em; height: 2em; text-align: center;  font-size: 3em;}
+
+.avatar-picker-label {
+    display: block;
+    margin-bottom: 0px;
+    color: #8ef6e4;
+    font-weight: 700;
+}
+
+.avatar-picker {
+    margin-bottom: 0px;
+    overflow: visible;
+}
+
+.avatar-grid {
+    width: 25%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.avatar-grid td {
+    padding: 0px;
+    overflow: visible;
+}
+
+.avatar-option {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    min-height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(rgb(10, 10, 80), rgb(0, 0, 35));
+    color: #fff;
+    border: 1px solid #0f3460;
+    border-radius: 14px;
+    font-size: 2rem;
+    cursor: pointer;
+    transform: scale(0.5);
+    transform-origin: center;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.avatar-option:hover:not(:disabled) {
+    transform: scale(2);
+    border-color: #00ffcc;
+    background: linear-gradient(rgb(0, 40, 140), rgb(0, 0, 48));
+    z-index: 2;
+}
+
+.avatar-option.avatar-selected {
+    border-color: #f9ca24;
+    box-shadow: 0 0 0 4px rgba(249,202,36,0.18);
+}
+
+.avatar-option.avatar-unavailable {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.avatar-picker-help {
+    color: #8ef6e4;
+    font-size: 0.95rem;
+    margin-top: 6px;
+}
 
 #invitation-label {color: #00ffcc; font-weight: bold; }
 pre,
@@ -328,9 +393,81 @@ button {
     padding: 10px;
     font-size: 0.9rem;
     transform-origin: 0% 100%;
-    transition: transform 2000ms ease, box-shadow 2000ms ease;
+    transition: transform 2000ms ease, box-shadow 2000ms ease, max-height 400ms ease, opacity 400ms ease, padding 400ms ease;
     border-radius: 5px;
     border: 1px solid rgba(0, 255, 204, 0.2);
+}
+
+#game-log.collapsed {
+    max-height: 0;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    border-color: transparent;
+}
+
+.game-log-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0 8px;
+    font-size: 0.95rem;
+}
+
+.game-log-toggle input[type="checkbox"] {
+    width: 1.4rem;
+    height: 1.4rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 2px solid rgba(0, 255, 204, 0.5);
+    border-radius: 0.35rem;
+    background: linear-gradient(180deg, rgba(0, 60, 140, 0.45), rgba(0, 20, 80, 0.75));
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.game-log-toggle input[type="checkbox"]:hover {
+    transform: scale(1.05);
+    border-color: rgba(0, 255, 204, 0.85);
+}
+
+.game-log-toggle input[type="checkbox"]:checked {
+    background: linear-gradient(180deg, rgba(0, 255, 204, 0.35), rgba(0, 100, 180, 0.7));
+    border-color: #00ffcc;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 10px rgba(0, 255, 204, 0.08);
+}
+
+.game-log-toggle input[type="checkbox"]:checked::after {
+    content: '';
+    width: 0.45rem;
+    height: 0.8rem;
+    border: solid #ffffff;
+    border-width: 0 0.18rem 0.18rem 0;
+    transform: rotate(45deg);
+    display: inline-block;
+}
+
+.game-log-toggle label {
+    color: #8ef6e4;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+@media (max-width: 860px) {
+    .game-log-toggle {
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 8px;
+    }
+
+    #game-log {
+        font-size: 0.85rem;
+    }
 }
 #game-log:hover {
                  transform-origin: 0% 100%;
