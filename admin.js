@@ -193,6 +193,7 @@ function handleServerEvent(data) {
             if (data.config) {
                 document.getElementById('config-piles')    .value = data.config.piles.join(',');
                 document.getElementById('config-forbidden').value = data.config.forbidden.join(',');
+                document.getElementById('config-maxCoins') .value = data.config.maxCoins;
                 document.getElementById('config-baseTime') .value = data.config.baseTime;
                 document.getElementById('config-educational').checked = data.config.educational;
             }
@@ -210,6 +211,7 @@ function handleServerEvent(data) {
             if (data.config) {
                 document.getElementById('config-piles').value = data.config.piles.join(',');
                 document.getElementById('config-forbidden').value = data.config.forbidden.join(',');
+                document.getElementById('config-maxCoins').value = data.config.maxCoins;
                 document.getElementById('config-baseTime').value = data.config.baseTime;
                 if (typeof data.config.educational === 'boolean') {
                     document.getElementById('config-educational').checked = data.config.educational;
@@ -495,6 +497,7 @@ function updateConfiguration() {
     
     const pilesInput = document.getElementById('config-piles').value;
     const forbiddenInput = document.getElementById('config-forbidden').value;
+    const maxCoinsInput = document.getElementById('config-maxCoins').value;
     const baseTimeInput = document.getElementById('config-baseTime').value;
     const moveDelayInput = +(document.getElementById('config-moveDelay').value) /*|| 100*/;
     const matchDelayInput = +(document.getElementById('config-matchDelay').value)/* || 2000*/;
@@ -502,6 +505,7 @@ function updateConfiguration() {
     // Parse inputs
     const piles = pilesInput.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
     const forbidden = forbiddenInput.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
+    const maxCoins = parseInt(maxCoinsInput) || 10;
     const baseTime = parseInt(baseTimeInput) || 10;
     const educational = !!document.getElementById('config-educational').checked;
     
@@ -515,6 +519,7 @@ function updateConfiguration() {
                             config: {
                                      piles,
                                      forbidden,
+                                     maxCoins,
                                      baseTime,
                                      educational,
                                      moveDelayMs: moveDelayInput,
@@ -522,7 +527,7 @@ function updateConfiguration() {
                                    }
                            }));
     
-    console.log('Sent config update:', { piles, forbidden, baseTime, moveDelayMs: moveDelayInput, matchDelayMs: matchDelayInput });
+    console.log('Sent config update:', { piles, forbidden, maxCoins, baseTime, moveDelayMs: moveDelayInput, matchDelayMs: matchDelayInput });
 }
 
 /**

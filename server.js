@@ -167,7 +167,7 @@ const CODE_EXAMPLES = [
                                                                                                          idx,
                                                                                                          name: mb.name,
                                                                                                          code: CODE_EXAMPLES[i % CODE_EXAMPLES.length],
-                                                                                                         timeBank: CONFIG.baseTime,
+                                                                                                         timeBank: 0 /*CONFIG.baseTime*/,
                                                                                                          score: 0,
                                                                                                          iRate: 0,
                                                                                                          nMoves: 0,
@@ -352,6 +352,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                   console.log("Admin updating configuration:", data.config);
                                                   if (data.config.piles)     CONFIG.piles     = data.config.piles;
                                                   if (data.config.forbidden) CONFIG.forbidden = data.config.forbidden;
+                                                  if (data.config.maxCoins)  CONFIG.maxCoins  = data.config.maxCoins;
                                                   if (data.config.baseTime)  CONFIG.baseTime  = data.config.baseTime;
                                                   if (typeof data.config.educational === 'boolean') {
                                                       CONFIG.educational = data.config.educational;
@@ -495,7 +496,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                                             idx,
                                                                             name,
                                                                             code,
-                                                                            timeBank: CONFIG.baseTime,
+                                                                            timeBank: 0 /*CONFIG.baseTime*/,
                                                                             score: 0,
                                                                             iRate: 0,
                                                                             nMoves: 0,
@@ -580,27 +581,38 @@ var CONFIG = {
                educational: true, // when true: Educational Mode (no persistence, clients can view other bots' code)
                piles: [3, 5, 7], // Initial piles
                forbidden: [3, 5], // Example: can't take 3 or 5 from any pile
+               maxCoins: 10, // Maximum coins in any pile for random generation
                baseTime: MATCH_TIME_LIMIT,   // ms
                maxCodeSize: MAX_CODE_SIZE, // bytes
                numberOfGamesPerMatch: NUMBER_OF_GAMES_PER_MATCH // Number of games each pair of Bots will play against each other
+             };
 
-};
+                   function makeRandGenFromSeed(seed) { //mulberry32 is a simple fast PRNG with good enough randomness for our purposes, and it allows us to have reproducible random sequences by using a fixed seed. This is useful for generating the initial piles and forbidden moves in a consistent way across tournaments, which can be important for fairness and for testing purposes. By using a seeded PRNG, we can ensure that the same sequence of "random" configurations is generated each time we start the server with the same seed. 
+                                               return function () {
+                                                                   let t = seed += 0x6D2B79F5;
+                                                                    t = Math.imul(t ^ (t >>> 15), t | 1);
+                                                                     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                                                                      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+                                               };
+                   }
 var startSeed = 12345; // Fixed seed for reproducibility of pile configurations and forbidden moves across tournaments
-               Math.random = makeRandGenFromSeed(startSeed);// Seeded random number generator for reproducibility of pile configurations and forbidden moves across tournaments
-   function resetConfigPiles(accountsNumber) {
-                                 //let accountsNumber = Math.floor(Math.random() * 5) + 3; // Random number of accounts between 3 and 7
-                                  let piles = []; 
-                                     for (let i = 0; i < accountsNumber; i++) {
-                                         piles.push(Math.floor(Math.random() * 10) + 1); // Random number of coins between 1 and 10
-                                     }
-                                      CONFIG.piles  = piles ;   
-   }
+            let rand = makeRandGenFromSeed(startSeed);// Seeded random number generator for reproducibility of pile configurations and forbidden moves across tournaments
+
+    function resetConfigPiles(accountsNumber) {
+                                  //let accountsNumber = Math.floor(rand() * 5) + 3; // Random number of accounts between 3 and 7
+                                   let piles = []; 
+                                      for (let i = 0; i < accountsNumber; i++) {
+                                           let k = (1 + rand()*CONFIG.maxCoins)|0; // Random number of coins between 1 and maxCoins
+                                            piles.push(k); // Random number of coins between 1 and maxCoins
+                                      }
+                                       CONFIG.piles  = piles ;   
+    }
 
     function resetConfigForbiddenMoves() {
          let maxTake = Math.max(...CONFIG.piles); // The maximum number of coins that can be taken in one move is the size of the largest pile
-          let forbiddenMovesCount = Math.floor(maxTake/4) + 1; // 
+          let forbiddenMovesCount = rand(maxTake/4)|0; // 
            for(let i=0; i<forbiddenMovesCount; i++){
-               let move = Math.floor(Math.random() * maxTake) + 1; // Random forbidden move between 1 and maxTake
+               let move = Math.floor(rand() * maxTake) + 1; // Random forbidden move between 1 and maxTake
                 if(!CONFIG.forbidden.includes(move)){
                     CONFIG.forbidden.push(move);
                 }
@@ -693,18 +705,20 @@ let isPaused = false;
 
 /**
     Round-robin scheduling algorithm to ensure that each player plays against every other player, while also allowing for pausing and resuming the tournament. If the number of players is odd, we add a dummy player to create an even number of players, which allows for a complete round-robin schedule without any player being left out in each round. The algorithm iterates through rounds and pairs players based on their indices, ensuring that each pair of players faces each other exactly once. During the tournament, it checks if the tournament is paused before starting each match, and if so, it waits until the tournament is resumed before proceeding with the matches. This allows for flexibility in managing the tournament flow while ensuring that all matches are completed as scheduled. 
+    Example with 5 players (0,1,2,3,4) + 1 dummy X player (5) for bye rounds:
      012 123 234 340 401   
      ||| ||| ||| ||| ||| 
-     543 504 510 521 532     
-
+     543 504 510 521 532  
+     X   X   X   X   X   
  */
                                let N= playersNumber;
                                 if(N%2==1)N++; // If odd number of players, add a dummy player for bye rounds in the round-robin scheduling algorithm
+                                 let N_ = N-1;
+
                                  for(let r=0; r<N-1; r++) {
                                      for(let k=0; k<N/2; k++) {
                                          while(isPaused) await delay(1000); // Check pause status every second
                                         
-                                         let N_ = N-1
                                           let A = mod(r + k, N_); 
                                           let B = mod(r - k, N_); 
                                            if(k === 0) B = N_;
@@ -725,16 +739,24 @@ let isPaused = false;
         async function 
         runMatch(emailA, emailB) { // Run a match of numberOfGamesPerMatch (default: 10) games between two Bots, alternating who goes first, and applying the time carry-over logic based on the tournament mode
                                       function opponentEmail(PlayerEmail){ return  (PlayerEmail === emailA) ? emailB : emailA;}
-                                 Math.random = makeRandGenFromSeed(startSeed);
+                                 rand = makeRandGenFromSeed(startSeed);
                                  const N = CONFIG.numberOfGamesPerMatch;
                                   setOfMatches:
                                    for (let game = 1; game <= N; game++) {
-                                        if(game%2===0)resetConfigPiles(game);
+                                        if(game%2===0){
+                                           resetConfigPiles(game);
+                                            resetConfigForbiddenMoves();
+                                             // Notify admin panel about config changes during tournament
+                                             if (adminClient && adminClient.readyState === 1) 
+                                                adminClient.send(JSON.stringify({ type: "CONFIG_UPDATED", config: CONFIG }));
+                                             
+                                        }
                                         let currentFirstPlayerEmail = (game % 2 === 1) ? emailA : emailB; // Alternate who goes first each game
                                          let botA = players[currentFirstPlayerEmail];
-                                         let opponentPlayerEmail = opponentEmail(currentFirstPlayerEmail);
+                                         let currentPlayerEmail = currentFirstPlayerEmail
+                                         let opponentPlayerEmail = opponentEmail(currentPlayerEmail);
                                           let botB = players[opponentPlayerEmail];
-                                          console.log(`Match ${game}/${N} between ${currentFirstPlayerEmail} and ${opponentPlayerEmail}`); 
+                                          //console.log(`Match ${game}/${N} between ${currentFirstPlayerEmail} and ${opponentPlayerEmail}`); 
 
                                          let state = { piles: [...CONFIG.piles], turn: currentFirstPlayerEmail};
                                            broadcast({ type: "CURRENT_FIGHT", fight: { playerA: botA.name, playerB: botB.name, game, totalGames: N }, totalGamesPlanned, totalGamesCompleted, config: CONFIG });
@@ -745,7 +767,8 @@ let isPaused = false;
                                           while (!isGameOver(state.piles)) {
                                                     // Determine current player and opponent based on the turn
                                                     currentPlayer = opponentPlayer; 
-                                                     opponentPlayerEmail = opponentEmail(opponentPlayerEmail);
+                                                    currentPlayerEmail = opponentPlayerEmail
+                                                     opponentPlayerEmail = opponentEmail(currentPlayerEmail);
                                                       opponentPlayer = players[opponentPlayerEmail];
 
                                                    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -754,57 +777,81 @@ let isPaused = false;
 
                                                    let move = report.result;
                                                     if (report.error) {
-                                                         console.log(`${currentPlayer.name} made Error :`,report.error);
+                                                         console.log(`${currentPlayer.name} (${currentPlayerEmail}) made Error :`,report.error);
+                                                         currentPlayer.timeBank += CONFIG.baseTime; // Penalize the player 
                                                          broadcast({ type: "DISQUALIFIED_FOR_ERROR", error: report.error, player: currentPlayer.name  });
                                                          opponentPlayer.score += 1;
                                                           recordMatchResult(emailA, emailB, opponentPlayerEmail, 0);
                                                            getMatchMatrixDisplay();
                                                             totalGamesCompleted += 1;
+                                                            currentPlayer.iRate = (currentPlayer.iRate || 0) - 1;
+                                                            currentPlayer.nMoves = (currentPlayer.nMoves || 0) + 1;   
                                                             broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: opponentPlayer.name, totalGamesPlanned, totalGamesCompleted });
 
                                                              continue setOfMatches; 
                                                      }
-                                                      // Validate currentPlayer Move 
+                                                          // Validate currentPlayer Move 
                                                           if (!isValidMove(move, state.piles)) {
-                                                              console.log(`${currentPlayer.name}(${state.turn}) try to do invalid move:`,move, " for piles: ", state.piles);
-                                                              currentPlayer.timeBank -= CONFIG.baseTime; // Penalize the player by subtracting the baseTime from their time bank for making an invalid move, which can lead to disqualification if their time bank runs out. This encourages players to write correct and efficient code, as invalid moves will have a significant penalty on their chances of winning future matches.
+                                                              console.log(`${currentPlayer.name} (${currentPlayerEmail}) try to do invalid move:`,move, " for piles: ", state.piles);
+                                                              currentPlayer.timeBank += CONFIG.baseTime; // Penalize the player 
                                                               broadcast({ type: "DISQUALIFIED_FOR_INVALID_MOVE", invalidMove: move, piles: state.piles, player: currentPlayer.name  });
                                                                opponentPlayer.score += 1; 
                                                                recordMatchResult(emailA, emailB, opponentPlayerEmail);
                                                                 getMatchMatrixDisplay();
+                                                                totalGamesCompleted += 1;
+                                                                currentPlayer.iRate = (currentPlayer.iRate || 0) - 1;
+                                                                currentPlayer.nMoves = (currentPlayer.nMoves || 0) + 1;   
                                                                  broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: opponentPlayer.name });
-                                                                continue setOfMatches; 
+
+                                                                  continue setOfMatches; 
                                                           }
+
+                                                          let xorSum = 0|0;
+
+                                                              if(move.count == 0){ //Surrender
+                                                                 currentPlayer.nMoves = (currentPlayer.nMoves || 0) + 1;                                                                                    
+                                                                  console.log(`${currentPlayer.name}(${currentPlayerEmail}) surrender in position:`, state.piles);
+                                                                 //currentPlayer.timeBank += CONFIG.baseTime; // Penalize the player 
+                                                                  broadcast({ type: "SURRENDERED", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank, xorsum: xorSum });
+                                                                   opponentPlayer.score += 1; 
+                                                                   recordMatchResult(emailA, emailB, opponentPlayerEmail);
+                                                                    getMatchMatrixDisplay();
+                                                                     broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: opponentPlayer.name });
+
+                                                                      continue setOfMatches; 
+                                                              }
 
                                                                 // Apply Valid Move
                                                                 state.piles[move.pileIndex] -= move.count;
                                                                 currentPlayer.nMoves = (currentPlayer.nMoves || 0) + 1;
 
                                                                 // Compute xor-sum after the move and update Intellectual Rate (iRate) if xor==0
-                                                                const xorSum = state.piles.reduce((acc, v) => acc ^ v, 0);
-                                                                if (xorSum === 0) {
+                                                                xorSum = state.piles
+                                                                                   .reduce((acc, v) => acc ^ v, 0);
+                                                                 if (xorSum === 0) {
                                                                     currentPlayer.iRate = (currentPlayer.iRate || 0) + 1;
-                                                                    console.log(`${currentPlayer.name} achieved xor-sum 0 — iRate now ${currentPlayer.iRate}`);
-                                                                }
+                                                                    //console.log(`${currentPlayer.name} achieved xor-sum 0 — iRate now ${currentPlayer.iRate}`);
+                                                                 }
 
                                                                 // Broadcast updated players list so leaderboard updates immediately after every correct move
                                                                 //try { broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted,  }); } catch (e) { }
 
-                                                                broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank, xorsum: xorSum });
+                                                                 broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank, xorsum: xorSum });
 
                                                                           await delay(MOVE_DELAY_MS); // Slow down move for dashboard viewers
                                            }
                                             // Determine Winner & Time Carry-over logic
                                             //if(CONFIG.mode === "NORMAL")                             
                                             let  winnerEmail =  opponentEmail(opponentPlayerEmail);  // after normal exit from while loop  in NORMAL game the opponent of  the opponent is winner
-                                             console.log(`Winner email : ${winnerEmail} `);                                                                                                                         
-                                              console.log(`Winner of match : ${currentPlayer.name} `);                                                                                                                         
+                                             //console.log(`Winner email : ${winnerEmail} `);                                                                                                                         
+                                              //console.log(`Winner of match : ${currentPlayer.name} `);                                                                                                                         
                                              currentPlayer.score += 1;
                                               recordMatchResult(emailA, emailB, winnerEmail);
                                                getMatchMatrixDisplay();
                                                 totalGamesCompleted += 1;
-                                                broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: players[winnerEmail].name, totalGamesPlanned, totalGamesCompleted });
-                                                 await delay(MATCH_DELAY_MS); // Slow down match for dashboard viewers
+                                                 broadcast({ type: "MATCH_UPDATE", players, matchMatrix: Matrix, winnerName: players[winnerEmail].name, totalGamesPlanned, totalGamesCompleted });
+
+                                                  await delay(MATCH_DELAY_MS); // Slow down match for dashboard viewers
                                    }
             }
             // Bots (player) Code EXECUTION on current state (currentPiles) by the "Referee logics" 
@@ -826,8 +873,9 @@ let isPaused = false;
                            
                            // Run with time limit
                            //player.timeBank = (+player.timeBank) + CONFIG.baseTime
-                            let timeLimit = (+player.timeBank) + CONFIG.baseTime; // Add baseTime to ensure Bots have at least some time to make a move even if their timeBank is low
-                             if(timeLimit<0)timeLimit = CONFIG.baseTime ; // The time limit for the Bot's code execution is the baseTime plus any remaining time in their timeBank, allowing for time carry-over between matches. This encourages players to write efficient code that can make decisions quickly, as taking too long will reduce their available time for future matches.
+                            //let timeLimit = (+player.timeBank) + CONFIG.baseTime; // Add baseTime to ensure Bots have at least some time to make a move even if their timeBank is low
+                            // if(timeLimit<0)timeLimit = CONFIG.baseTime ; // The time limit for the Bot's code execution is the baseTime plus any remaining time in their timeBank, allowing for time carry-over between matches. This encourages players to write efficient code that can make decisions quickly, as taking too long will reduce their available time for future matches.
+                            let timeLimit = CONFIG.baseTime; // Add baseTime to ensure Bots have at least some time to make a move even if their timeBank is low
                              //start time 
                              const startTime = Date.now();  
                              // Run the Bot code with a timeout to prevent infinite loops or long execution times. The timeout is set to the player's remaining time bank. 
@@ -835,7 +883,8 @@ let isPaused = false;
                                //end time
                                const endTime = Date.now();
                                 const duration = endTime - startTime;
-                                 player.timeBank = timeLimit - duration; // Subtract the time spent from the player's time bank
+                                // player.timeBank = timeLimit - duration; // Subtract the time spent from the player's time bank
+                                 player.timeBank +=  duration; // Subtract the time spent from the player's time bank
                                  let report = { result: sandbox.result, timeSpent: duration }
                                   return report; // contains the move = sandbox.result from the Bot's play() function
                          }
@@ -917,7 +966,7 @@ var Matrix = [];
                                                     if (!move || move.pileIndex === undefined) return false; // move must exists and specify a existing pile index
                                                     if (CONFIG.forbidden.includes(move.count)) return false; // Check if the move count is in the forbidden list
                                                     // negative moves forbidden and gamer must take at least 1 from a pile, and cannot take more than what's available in the chosen pile
-                                                    if (move.count <= 0 || move.count > piles[move.pileIndex]) return false;
+                                                    if (move.count < 0 || move.count > piles[move.pileIndex]) return false;
                 
                                                     // else move is valid if it passes all checks
                                                        return true;
@@ -947,14 +996,6 @@ var Matrix = [];
                 async function delay(time) {
                                             await new Promise(delayresolve => setTimeout(delayresolve, time /*ms*/)); // Slow down for dashboard viewers
                 } 
-                function makeRandGenFromSeed(seed) { //mulberry32 is a simple fast PRNG with good enough randomness for our purposes, and it allows us to have reproducible random sequences by using a fixed seed. This is useful for generating the initial piles and forbidden moves in a consistent way across tournaments, which can be important for fairness and for testing purposes. By using a seeded PRNG, we can ensure that the same sequence of "random" configurations is generated each time we start the server with the same seed. 
-                                            return function () {
-                                                                let t = seed += 0x6D2B79F5;
-                                                                 t = Math.imul(t ^ (t >>> 15), t | 1);
-                                                                  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-                                                                   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-                                            };
-                }
 
 
 
