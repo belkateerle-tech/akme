@@ -17,6 +17,7 @@ let currentOpponentName = null; // Store current opponent's name
 let currentOpponentCode = null; // Store current opponent's bot code
 let playerBotCodes = {}; // Store all players' bot codes for reference
 let selectedAvatar = null;
+var MATCH_CONFIG = null; // Current game configuration for the active match
 
 const AVATAR_GRID_SIZE = 8;
 const BOT_AVATARS = [
@@ -84,7 +85,7 @@ let tournamentState = "not_started"; // States: not_started, running, paused, en
                                            
         }
 
-var currenConfig = null;
+/*var MATCH_CONFIG = null;*/
 let deadlineStartTime = null; // Will be calculated from delta when received from server
 let clientRegistrationTime = null; // Client's local time when delta was received from server
 
@@ -95,7 +96,7 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                             return;
                                           }
                                                                       if (data.type === 'CONFIG' || data.type === 'CONFIG_UPDATED') {
-                                                                          currenConfig = data.config;
+                                                                          MATCH_CONFIG = data.config;
                                                                           // Rebuild bot selector when config changes
                                                                           try { initializeBotCodeDropdown(); } catch (e) {}
                                                                           return;
@@ -162,7 +163,7 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                                           
                                                                                           updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
                                                                                           data.config && logEvent(`Tournament configuration: ${JSON.stringify(data.config)}`);
-                                                                                           currenConfig = data.config;
+                                                                                           MATCH_CONFIG = data.config;
                                                                                            tournamentState = "running";
     
                                                                                            beginContestLayouts();
@@ -215,13 +216,16 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                                   }
                                                                                   matchMatrix = data.matchMatrix;
                                                                                   renderMatchMatrix(matchMatrix, playerList);
-                                                                                  currenConfig = data.config;
+                                                                                  MATCH_CONFIG = data.config;
                                                                                   updateProgressDisplay(totalGamesCompleted, totalGamesPlanned);
                                                                                   logEvent("🎊 NEW CONTEST STARTS!");
                                               }
                                               
                                               if (data.type === "CURRENT_FIGHT") {
                                                                                   const fight = data.fight;
+                                                                                  if (data.config) {
+                                                                                      MATCH_CONFIG = data.config;
+                                                                                  }
                                                                                    currentFightText.innerHTML = `⚔️ <strong>${fight.playerA}</strong> vs <strong>${fight.playerB}</strong> (Game ${fight.game}/${fight.totalGames})`;
                                                                                    if (typeof data.totalGamesPlanned === 'number') {
                                                                                        totalGamesPlanned = data.totalGamesPlanned;
@@ -236,8 +240,12 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                               }
                                               
                                               if (data.type === "MOVE") {
-                                                                        updatePiles(data);
-                                                                         logEvent(`${data.player} took ${data.count} coins, now state is ${data.piles}, (bonus: +${data.bonus}ms)`);
+                                                                        drawUpdatePiles(data);
+                                                                         logEvent(`${data.player} took ${data.count} coins, now state is ${data.piles}, (time: +${data.bonus}ms)`);
+                                              }
+                                              if (data.type === "SURRENDERED") {
+                                                                        drawUpdatePiles(data);
+                                                                         logEvent(`${data.player} surrendered in position: ${data.piles}, (time: +${data.bonus}ms)`);
                                               }
                                               
                                               if (data.type === "MATCH_UPDATE") {
@@ -347,23 +355,29 @@ var countdownInterval=null;
             }
 
             // Function to update the piles display based on the current game state
-            function updatePiles(data) {
-                let forb = currenConfig.forbidden ;
-                let piles = data.piles;
+            function drawUpdatePiles(data) {
+                let forb = MATCH_CONFIG.forbidden ;
+                let piles  = data.piles;
+                let piles_ = MATCH_CONFIG.piles;
                 let player = data.player.trim();
                 let pilesString = "";
                  piles.forEach((count, index) => {
                                                   let pile = "🪙".repeat(count); 
+                                                  let emptySlots = piles_[index] - count;
+                                                      if(emptySlots > 0) {
+                                                          pile += "⚫️".repeat(emptySlots); // Add empty slot symbols to represent remaining capacity of the pile
+                                                        }
                                                    let P = [...pile];
                                                     for(let k = 0; k < forb.length; k++){ 
                                                         let i=count-forb[k];
-                                                         if(i>=0) P[i] = `💥`; //'❌';
-                                                    }    
+                                                         if(i>=0) P[i] = `❌`; //'💥';
+                                                    }
+                                                     if(index === data.movedFrom) {
+                                                         P[count] = player;
+                                                      }    
+                                                 
                                                     //console.log(P)  
-                                                     pile = P.join('');     
-                                                      if(index === data.movedFrom) {
-                                                         pile +=  player;
-                                                      }
+                                                      pile = P.join('');     
                                                        pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
                                                  }
                               );
@@ -398,10 +412,10 @@ var countdownInterval=null;
                                                            .sort((a, b) => {
                                                                              // Primary: score (desc)
                                                                              if (b.score !== a.score) return b.score - a.score;
-                                                                                 // Secondary: timeBank (desc). Ensure numeric comparison with fallback 0
+                                                                                 // Secondary: timeBank (asc). Ensure numeric comparison with fallback 0
                                                                                  const tbA = Number(a.timeBank) || 0;
                                                                                  const tbB = Number(b.timeBank) || 0;
-                                                                                  return tbB - tbA;
+                                                                                  return tbA - tbB;
                                                            })
                                                            .forEach(p => {
                                                                const relIR = p.nMoves ? ((Number(p.iRate) || 0) / Number(p.nMoves) * 100).toFixed(2) : '0.00';
@@ -592,7 +606,7 @@ function initializeBotCodeDropdown() {
         defaultOpt.textContent = '-- Open/Close Code --';
         selector.appendChild(defaultOpt);
 
-        if (currenConfig && currenConfig.educational && playerList) {
+        if (MATCH_CONFIG && MATCH_CONFIG.educational && playerList) {
             Object.values(playerList)
                 .filter(p => p && p.name)
                 .forEach(p => {
@@ -605,7 +619,7 @@ function initializeBotCodeDropdown() {
     }
 
     function updateVisibility() {
-        const educationalMode = currenConfig && currenConfig.educational;
+        const educationalMode = MATCH_CONFIG && MATCH_CONFIG.educational;
         if (educationalMode) {
             dropdownContainer.style.display = '';
            viewer.classList.remove("hidden");
