@@ -1,4 +1,4 @@
-let ws=null; // used for WebSocket connection to the server for real-time updates
+let socket = null; // used for Socket.IO connection to the server for real-time updates
 const logo             = document.getElementById('logo');
 const deadlineText     = document.getElementById('deadline-timer');
 const regView          = document.getElementById('registration-view');
@@ -31,38 +31,38 @@ const BOT_AVATARS = [
     '🐲','🐉','🦈','🦑','🦐','🦀','🧸','🦝'
 ];
 
-    ///  Establish WebSocket connection to the server . Called when this page loaded  to be ready to receive real-time updates about the tournament and game state
+    ///  Establish Socket.IO connection to the server. Called when this page loads to receive real-time tournament updates.
     function connect() {
-                        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-                         ws = new WebSocket(`${protocol}://${window.location.host}`);
+                        socket = io();
 
-                                         //// -------- Listen for messages from the server ----
-                          ws.onmessage = (event) => {
-                                                     const data = JSON.parse(event.data);
-                                                      handleServerEvent(data); // Main dispatcher for all incoming events from the server
-                                         };
+                        socket.on('connect', () => {
+                            document.getElementById('status-text').innerText = "Connected to Arena";
+                            try {
+                                if (socket && socket.connected) {
+                                    socket.send({ type: 'VISIBILITY', state: document.visibilityState });
+                                }
+                            } catch (e) {}
+                        });
 
-                                         //// -------- Display connection status ------------------------------------
-                          ws.onopen    = () => {
-                                              document.getElementById('status-text').innerText = "Connected to Arena";
-                                         };
-                                         // send initial visibility state when connection opens
-                                         ws.onopen = () => {
-                                             document.getElementById('status-text').innerText = "Connected to Arena";
-                                             try {
-                                                 if (ws && ws.readyState === WebSocket.OPEN) {
-                                                     ws.send(JSON.stringify({ type: 'VISIBILITY', state: document.visibilityState }));
-                                                 }
-                                             } catch (e) {}
-                                         };
-                          
+                        socket.on('disconnect', () => {
+                            document.getElementById('status-text').innerText = "Disconnected from Arena";
+                        });
+
+                        socket.on('message', (payload) => {
+                            const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                            handleServerEvent(data);
+                        });
+
+                        socket.on('connect_error', (err) => {
+                            document.getElementById('status-text').innerText = `Connection error: ${err.message}`;
+                        });
     }
 
 // Notify server when tab visibility changes (helps explain background throttling)
 document.addEventListener('visibilitychange', () => {
     try {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'VISIBILITY', state: document.visibilityState }));
+        if (socket && socket.connected) {
+            socket.send({ type: 'VISIBILITY', state: document.visibilityState });
         }
     } catch (e) {}
 });
@@ -94,11 +94,11 @@ let tournamentState = "not_started"; // States: not_started, running, paused, en
                                                      name: avatarName,
                                                      code
                                     };
-                                    if (ws && ws.readyState === WebSocket.OPEN) {
-                                         ws.send(JSON.stringify(payload));
+                                    if (socket && socket.connected) {
+                                         socket.send(payload);
                                      }
                                      else {
-                                           alert('WebSocket connection is not established');
+                                           alert('Socket.IO connection is not established');
                                      }
                                            
         }
@@ -288,8 +288,8 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
 
                                               if (data.type === "HEARTBEAT_REQUEST") {
                                                   // Respond to server heartbeat to confirm connection
-                                                  if (ws && ws.readyState === WebSocket.OPEN) {
-                                                      ws.send(JSON.stringify({ type: "HEARTBEAT_RESPONSE" }));
+                                                  if (socket && socket.connected) {
+                                                      socket.send({ type: "HEARTBEAT_RESPONSE" });
                                                   }
                                                   //let hljs = window.hljs;
                                                       // hljs.highlightAll(); // Highlight any new code snippets in the log

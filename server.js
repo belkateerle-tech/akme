@@ -1,9 +1,9 @@
-const version = "0.2.1" 
+const version = "0.3.0" 
 const crypto              = require('crypto'); // Node crypto for server-side SHA256 password hashing
 const express             = require('express'); // Express framework for handling HTTP requests and serving the dashboard
-const { WebSocketServer } = require('ws'); // WebSocket library for real-time communication with the dashboard
+const http                = require('http'); // Node's built-in HTTP module to create a server that can handle both Express and Socket.IO connections on the same port
+const { Server }          = require('socket.io'); // Socket.IO for reliable real-time communication
 const vm                  = require('vm'); // Node's built-in virtual machine module for safely executing untrusted Bot code in a sandboxed environment with timeouts to prevent abuse
-const http                = require('http'); // Node's built-in HTTP module to create a server that can handle both Express and WebSocket connections on the same port
 const fs                  = require('fs').promises; // newest File system module for reading/writing tournament data, if needed for persistence or logging
 const path                = require('path');  // Node's built-in path module for handling file paths, such as where to store tournament data or logs 
  const DATA_DIR = path.join(__dirname, 'data'); // Directory to store tournament data, logs, or player registrations if needed. This keeps the project organized and allows for future features like saving tournament history or player stats. Make sure this directory exists or add code to create it if it doesn't. 
@@ -12,8 +12,13 @@ const path                = require('path');  // Node's built-in path module for
 const  app = express(); // Express application for handling HTTP requests and serving the dashboard
         app.use(express.json()); // Middleware to parse JSON bodies in HTTP requests 
         app.use(express.static('public')); // Serves your index.html in /public directory    
-const   server = http.createServer(app); // Create an HTTP server to attach both Express and WebSocket to the same port
-const    wss = new WebSocketServer({ server }); // WebSocket server for real-time communication with the dashboard
+const    server = http.createServer(app); // Create an HTTP server to attach both Express and Socket.IO to the same port
+const     io = new Server(server, {
+                                    cors: {
+                                        origin: '*',
+                                        methods: ['GET', 'POST']
+                                    }
+                                  }); // Socket.IO server for real-time communication with the dashboard
 
 
 
@@ -26,13 +31,12 @@ const    wss = new WebSocketServer({ server }); // WebSocket server for real-tim
 
 
 const ADMIN_PASSWORD_HASH = '449904569c19c55d7537de6e946ccedbc4e4a4d874bdf3263e2efa7c72aa0d35';
-
             function isAdminPasswordValid(password) {
-                //console.log("Admin login attempt with password:", password);
-                let hash = crypto.createHash('sha256').update(password, 'utf8').digest('hex');
-                 //console.log("Computed password hash:", hash);
-                 //console.log("Expected password hash:", ADMIN_PASSWORD_HASH);
-                  return hash === ADMIN_PASSWORD_HASH;
+                                                      //console.log("Admin login attempt with password:", password);
+                                                      let hash = crypto.createHash('sha256').update(password, 'utf8').digest('hex');
+                                                       //console.log("Computed password hash:", hash);
+                                                       //console.log("Expected password hash:", ADMIN_PASSWORD_HASH);
+                                                        return hash === ADMIN_PASSWORD_HASH;
             }
             
         
@@ -75,85 +79,31 @@ const PORT = 3000;
                                     console.log(`server.js (version ${version}) running   at http://localhost:${PORT}`);
                                     // Ensure microbots are registered before clients connect
                                     try { ensureMicrobotsRegistered(); } catch (e) { console.error('Error registering microbots', e); }
-                                    tournamentStartTime = Date.now() + DEFAULT_START_DELAY_MS;
-                                     console.log(`Tournament scheduled to start at ${new Date(tournamentStartTime).toLocaleString()}`);
+
+                                     tournamentStartTime = Date.now() + DEFAULT_START_DELAY_MS;
+                                      console.log(`Tournament scheduled to start at ${new Date(tournamentStartTime).toLocaleString()}`);
                                      startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
-                                     broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
-                                     // Broadcast current players list (includes microbots)
-                                     broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
+                                      broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
+                                      // Broadcast current players list (includes microbots)
+                                      broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
                                      
-                                     // Start heartbeat mechanism using ws ping/pong with longer timeout
-                                   const HEARTBEAT_INTERVAL_MS = 10000; // send ping every 10s
-                                   const HEARTBEAT_TIMEOUT_MS = 30000;  // consider unresponsive after 30s without pong
-
-                                    // Set up a periodic check that pings clients and marks unresponsive ones
-                                    heartbeatInterval = setInterval(() => {
-                                                                       const now = Date.now();
-
-                                                                       wss.clients.forEach(client => {
-                                                                           // Skip non-open sockets
-                                                                           if (client.readyState !== 1) return;
-
-                                                                           // If client hasn't responded to previous ping (isAlive === false), mark unresponsive
-                                                                           if (client.isAlive === false) {
-                                                                               const email = clientEmailMap.get(client) || 'unknown';
-                                                                               const lastHB = clientHeartbeat.get(client) || 0;
-                                                                               const since = lastHB ? `${now - lastHB}ms` : 'no heartbeat recorded';
-                                                                               console.log(`⚠️ Client ${email} marked as unresponsive (no pong within ${HEARTBEAT_TIMEOUT_MS}ms). lastHB=${since} readyState=${client.readyState}`);
-
-                                                                               // Update player status if known
-                                                                               if (email && players[email]) {
-                                                                                   players[email].status = 'unresponsive';
-                                                                                   // Notify admin about unresponsive player
-                                                                                   if (adminClient && adminClient.readyState === 1) {
-                                                                                       try { adminClient.send(JSON.stringify({ type: 'PLAYER_UNRESPONSIVE', email, timestamp: now, lastHeartbeat: lastHB || null })); } catch (e) {}
-                                                                                   }
-                                                                               }
-
-                                                                               // Do not abruptly terminate browser clients (they may be in background throttled), just continue; we'll allow reconnection or close event to cleanup.
-                                                                               return;
-                                                                           }
-
-                                                                           // Reset flag and send ping; browser clients will auto-respond with pong at protocol level
-                                                                           client.isAlive = false;
-                                                                           try { client.ping(); } catch (e) { /* ignore ping errors */ }
-                                                                       });
-
-                                                                       // Build and send connection status update to admin
-                                                                       const connectionStatus = {};
-                                                                       Object.keys(players).forEach(email => {
-                                                                           const client = emailToClientMap.get(email);
-                                                                           if (client) {
-                                                                               const lastHB = clientHeartbeat.get(client) || 0;
-                                                                               const state = (now - lastHB) <= HEARTBEAT_TIMEOUT_MS ? 'connected' : (players[email] && players[email].status === 'unresponsive' ? 'unresponsive' : 'disconnected');
-                                                                               connectionStatus[email] = { state, lastHeartbeat: lastHB || null, visibility: players[email] && players[email].visibility };
-                                                                           } else {
-                                                                               connectionStatus[email] = { state: 'disconnected', lastHeartbeat: null, visibility: players[email] && players[email].visibility };
-                                                                           }
-                                                                       });
-
-                                                                       if (adminClient && adminClient.readyState === 1) {
-                                                                           try { adminClient.send(JSON.stringify({ type: 'CONNECTION_STATUS_UPDATE', connectionStatus, timestamp: now })); } catch (e) {}
-                                                                       }
-
-                                                                   }, HEARTBEAT_INTERVAL_MS);
                                   }
                      );        
 
 var playersNumber = 0;
 var players = {};
 // Microbots that must always be present in the tournament
-const MICROBOTS = [
+var MICROBOTS = [
     { email: 'bot@internet.edu', name: '🤖' },
     { email: 'clown@circus.com', name: '🤡' },
     { email: 'snowman@pole.org', name: '☃️' }
 ];
 
 // Default example codes (kept in sync with client CodeExample snippets)
-const CODE_EXAMPLES = [
+var CODE_EXAMPLES = [
 `\n function play(piles, forbidden, context) {\n               let target =0, N=0; \n                target = piles.findIndex(p => p > 0);\n                 if(piles[target]== 1) N = 1;\n                 else                  N = 2;\n                  return { pileIndex: target, count: N }; \n }`,
-`\n function play(piles, forbidden, context) {\n               // TO DO \n               let i=0, c=0;\n                for(i; i<piles.length; i++)\n                    if(piles[i]>0) break;\n                \n                if(piles[i]== 1) c = 1;\n                else             c = 1;\n                 return { pileIndex: i, count: c }; \n }`,
-`\nfunction play(piles, forbidden, context) {\n             // TO DO \n             const target = piles.findIndex(p => p > 0); // find the first non-empty pile\n             let NumberOfCoins = 0;\n              if(piles[target]==1) NumberOfCoins=1;\n              else                 NumberOfCoins=2;\n               if (forbidden.includes(NumberOfCoins)) NumberOfCoins=1;   // if for example 2 is forbidden we take 1 coin\n                return { pileIndex: target, count: NumberOfCoins }; \n}\n`
+`\n function play(piles, forbidden, context) {\n               let i=0, c=0;\n                for(i; i<piles.length; i++)\n                    if(piles[i]>0) break;\n                \n                if(piles[i]== 1) c = 1;\n                else             c = 1;\n                 return { pileIndex: i, count: c }; \n }`,
+`\n function play(piles, forbidden, context) {\n               let target = piles.findIndex(p => p > 0); // find the first non-empty pile\n             let NumberOfCoins = 0;\n              if(piles[target]==1) NumberOfCoins=1;\n              else                 NumberOfCoins=2;\n               if (forbidden.includes(NumberOfCoins)) NumberOfCoins=1;   // if for example 2 is forbidden we take 1 coin\n                return { pileIndex: target, count: NumberOfCoins }; \n}\n`
 ];
                 // Ensure microbots are registered in the players map
                 function ensureMicrobotsRegistered() {
@@ -174,144 +124,128 @@ const CODE_EXAMPLES = [
                                                                                                         };
                                                                                }
                                                                               });
-                    totalGamesPlanned = calculateTotalGamesToPlay();
+                                                                                 totalGamesPlanned = calculateTotalGamesToPlay();
                 }
-var adminClient = null; // Single authenticated admin WebSocket connection
-var clientEmailMap = new Map(); // Map from WebSocket client to player email
-var emailToClientMap = new Map(); // Map from player email to WebSocket client
-var clientHeartbeat = new Map(); // Track last heartbeat time for each client
-var heartbeatInterval = null; // Heartbeat interval timer
+var adminClient = null; // Single authenticated admin Socket.IO connection
+var clientEmailMap = new Map(); // Map from Socket.IO client to player email
+var emailToClientMap = new Map(); // Map from player email to Socket.IO client
 
 
-let tournamentStarted   = false;// Flag to prevent multiple tournament starts
-let tournamentStartTime = null; // Timestamp for when the tournament is scheduled to start, sent to clients for countdown display
-let startTimeout        = null; // To allow manual start before the scheduled time if needed
-let matchMatrix         = {}; // Stores results of matches for the matrix display
+var tournamentStarted   = false;// Flag to prevent multiple tournament starts
+var tournamentStartTime = null; // Timestamp for when the tournament is scheduled to start, sent to clients for countdown display
+var startTimeout        = null; // To allow manual start before the scheduled time if needed
+var matchMatrix         = {}; // Stores results of matches for the matrix display
 // matchMatrix structure: { "emailA|emailB": { playerA, playerB, winsA, winsB, bonusA, bonusB } }
-let totalGamesPlanned   = 0;  // Calculated when players register and when a tournament starts
-let totalGamesCompleted = 0;  // Incremented after each finished game
+var totalGamesPlanned   = 0;  // Calculated when players register and when a tournament starts
+var totalGamesCompleted = 0;  // Incremented after each finished game
 
-let DEFAULT_START_DELAY_MS = 15 * 60 * 1000; // 15 minutes after server start
-let MATCH_TIME_LIMIT = 100; // Time limit for each match in milliseconds (can be adjusted as needed)
-let COMPILE_TIME_LIMIT = 100; // Time limit for each match in milliseconds (can be adjusted as needed)
-let MAX_CODE_SIZE = 4096; // Maximum size for each bot's code in characters
-let NUMBER_OF_GAMES_PER_MATCH = 10; // Number of games to play per match
-let MOVE_DELAY_MS = 100; // Delay between moves in milliseconds to slow down the tournament for better visualization on the dashboard
-let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down the tournament for better visualization on the dashboard
-
-
+var DEFAULT_START_DELAY_MS = 15 * 60 * 1000; // 15 minutes after server start
+var MATCH_TIME_LIMIT = 100; // Time limit for each match in milliseconds (can be adjusted as needed)
+var COMPILE_TIME_LIMIT = 100; // Time limit for each match in milliseconds (can be adjusted as needed)
+var MAX_CODE_SIZE = 4096; // Maximum size for each bot's code in characters
+var NUMBER_OF_GAMES_PER_MATCH = 10; // Number of games to play per match
+var MOVE_DELAY_MS = 100; // Delay between moves in milliseconds to slow down the tournament for better visualization on the dashboard
+var MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down the tournament for better visualization on the dashboard
 
 
-          wss.on('connection', 
+
+
+          io.on('connection', 
              //---------------------------------------------------------------------            
-            // When a new game-clients connects, send them the tournament start time delta if ready
-            ws => {
-                   // mark socket as alive for ping/pong heartbeat
-                   ws.isAlive = true;
-                   ws.on('pong', () => {
-                       try {
-                           ws.isAlive = true;
-                           clientHeartbeat.set(ws, Date.now());
-                       } catch (e) {}
-                   });
-                   if (tournamentStartTime) {
-                       let timeDelta = tournamentStartTime - Date.now(); // Time interval from now until tournament starts (in milliseconds)
-                       let startTimeMessage = { type: "START_TIME_DELTA", delta: timeDelta };
-                        let startTimeString = JSON.stringify(startTimeMessage);
-                           ws.send(startTimeString);
-                           // Also send current config and players so clients can populate UI immediately
-                           try { ws.send(JSON.stringify({ type: 'CONFIG', config: CONFIG })); } catch(e){}
-                           try { ws.send(JSON.stringify({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted })); } catch(e){}
-                        }
+            // When a new client connects, send them the tournament start time delta if ready
+            socket => {
+                       if (tournamentStartTime) {
+                           let timeDelta = tournamentStartTime - Date.now(); // Time interval from now until tournament starts (in milliseconds)
+                           let startTimeMessage = { type: "START_TIME_DELTA", delta: timeDelta };
+                               socket.send(startTimeMessage);
+                               // Also send current config and players so clients can populate UI immediately
+                               try { socket.send({ type: 'CONFIG', config: CONFIG }); } catch(e){}
+                               try { socket.send({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted }); } catch(e){}
+                            }
+
                         // Working with messages from clients, such as a request to start the tournament early           
-                   ws.on('message', 
+                   socket.on('message', 
                           //-------------------------------------------------------------------- 
                           async message => {
                                       try {
-                                          let data = JSON.parse(message);
+                                           let data = typeof message === 'string' ? JSON.parse(message) : message;
                                           
-                                                              // Handle heartbeat response from client (fallback)
-                                                              if (data.type === "HEARTBEAT_RESPONSE") {
-                                                                  clientHeartbeat.set(ws, Date.now());
-                                                                  ws.isAlive = true;
-                                                                  return;
-                                                              }
 
-                                                              // Handle visibility state from client (background/tab visibility)
-                                                              if (data.type === 'VISIBILITY') {
-                                                                  const state = data.state;
-                                                                  const email = clientEmailMap.get(ws);
-                                                                  if (email && players[email]) {
-                                                                      players[email].visibility = state;
-                                                                  }
-                                                                  clientHeartbeat.set(ws, Date.now());
-                                                                  if (adminClient && adminClient.readyState === 1) {
-                                                                      try { adminClient.send(JSON.stringify({ type: 'PLAYER_VISIBILITY', email: clientEmailMap.get(ws) || null, visibility: state, timestamp: Date.now() })); } catch (e) {}
-                                                                  }
-                                                                  return;
-                                                              }
+                                           // Handle visibility state from client (background/tab visibility)
+                                           if (data.type === 'VISIBILITY') {
+                                               const state = data.state;
+                                               const email = clientEmailMap.get(socket);
+                                                if (email && players[email]) {
+                                                    players[email].visibility = state;
+                                                }
+                                                if (adminClient && adminClient.connected) {
+                                                    try { adminClient.send({ type: 'PLAYER_VISIBILITY', email: clientEmailMap.get(socket) || null, visibility: state, timestamp: Date.now() }); } catch (e) {}
+                                                }
+                                                 return;
+                                           }
 
                                           // Handle admin login request
                                           if (data.type === "ADMIN_LOGIN") {
                                               const { password } = data;
-                                              if (typeof password !== 'string' || !password.trim()) {
-                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Password required' }));
-                                                  return;
-                                              }
 
-                                              if (!isAdminPasswordValid(password)) {
-                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Invalid password' }));
-                                                  return;
-                                              }
+                                               if (typeof password !== 'string' || !password.trim()) {
+                                                   socket.send({ type: 'ADMIN_AUTH_FAILURE', message: 'Password required' });
+                                                   return;
+                                               }
 
-                                              if (adminClient && adminClient.readyState === 1 && adminClient !== ws) {
-                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Another admin session is already active' }));
-                                                  return;
-                                              }
+                                               if (!isAdminPasswordValid(password)) {
+                                                   socket.send({ type: 'ADMIN_AUTH_FAILURE', message: 'Invalid password' });
+                                                   return;
+                                               }
 
-                                              ws.isAdminAuthenticated = true;
-                                              adminClient = ws;
-                                              console.log("(231) Admin client authenticated");
-                                              ws.send(JSON.stringify({ 
-                                                  type: "ADMIN_AUTH_SUCCESS",
-                                                  players,
-                                                  tournamentStarted,
-                                                  tournamentStartTime,
-                                                  totalGamesPlanned,
-                                                  totalGamesCompleted,
-                                                  config: CONFIG
-                                              }));
-                                              return;
+                                               if (adminClient && adminClient.connected && adminClient !== socket) {
+                                                   socket.send({ type: 'ADMIN_AUTH_FAILURE', message: 'Another admin session is already active' });
+                                                   return;
+                                               }
+
+                                                socket.isAdminAuthenticated = true;
+                                                 adminClient = socket;
+                                                console.log(" Admin client authenticated (ADMIN_LOGIN)");
+                                                 socket.send({ 
+                                                              type: "ADMIN_AUTH_SUCCESS",
+                                                              players,
+                                                              tournamentStarted,
+                                                              tournamentStartTime,
+                                                              totalGamesPlanned,
+                                                              totalGamesCompleted,
+                                                              config: CONFIG
+                                                           });
+                                                  return;
                                           }
 
                                           // Handle admin authentication marker if provided without login
                                           if (data.type === "ADMIN_AUTH") {
-                                              if (!ws.isAdminAuthenticated) {
-                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Authentication required' }));
-                                                  return;
+                                              if (!socket.isAdminAuthenticated) {
+                                                  socket.send({ type: 'ADMIN_AUTH_FAILURE', message: 'Authentication required' });
+                                                   return;
                                               }
 
-                                              if (adminClient && adminClient !== ws) {
-                                                  ws.send(JSON.stringify({ type: 'ADMIN_AUTH_FAILURE', message: 'Another admin session is already active' }));
-                                                  return;
+                                              if (adminClient && adminClient.connected) {
+                                                  socket.send({ type: 'ADMIN_AUTH_FAILURE', message: 'Another admin session is already active' });
+                                                   return;
                                               }
 
-                                              adminClient = ws;
-                                              console.log("(250) Admin client authenticated");
-                                              ws.send(JSON.stringify({ 
-                                                  type: "ADMIN_AUTH_SUCCESS",
-                                                  players,
-                                                  tournamentStarted,
-                                                  tournamentStartTime,
-                                                  totalGamesPlanned,
-                                                  totalGamesCompleted,
-                                                  config: CONFIG
-                                              }));
-                                              return;
+                                              adminClient = socket;
+                                              console.log("(234) Admin client authenticated (ADMIN_AUTH)");
+                                               socket.send({ 
+                                                             type: "ADMIN_AUTH_SUCCESS",
+                                                             players,
+                                                             tournamentStarted,
+                                                             tournamentStartTime,
+                                                             totalGamesPlanned,
+                                                             totalGamesCompleted,
+                                                             config: CONFIG
+                                                          });
+                                                return;
                                           }
 
                                           // Handle admin commands
-                                          if (adminClient === ws) {
+                                          if (adminClient === socket) {
 
                                               if (data.type === "ADMIN_START") {
                                                  console.log("Admin requested tournament start");
@@ -348,24 +282,24 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                               if (data.type === "ADMIN_NEW_TOURNAMENT") {
                                                  console.log("Admin requested new tournament");
                                                   if (!tournamentStarted) {
-                                                      playersNumber = 0;
-                                                      players = {};
-                                                      matchMatrix = {};
-                                                      Matrix = [];
-                                                      clientEmailMap.clear();
-                                                      emailToClientMap.clear();
-                                                      if (startTimeout) {
-                                                          clearTimeout(startTimeout);
-                                                      }
-                                                      tournamentStartTime = Date.now() + DEFAULT_START_DELAY_MS;
-                                                       console.log(`New tournament scheduled to start at ${new Date(tournamentStartTime).toLocaleString()}`);
-                                                       startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
-                                                      // Re-register microbots and notify clients
-                                                      ensureMicrobotsRegistered();
-                                                      broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
-                                                      broadcast({ type: "NEW_CONTEST_BEGINS", players: players, matchMatrix: {}, config: CONFIG });
-                                                      broadcast({ type: 'PLAYERS_LIST', players });
-                                                  }
+                                                                             playersNumber = 0;
+                                                                             players = {};
+                                                                             matchMatrix = {};
+                                                                             Matrix = [];
+                                                                             clientEmailMap.clear();
+                                                                             emailToClientMap.clear();
+                                                                             if (startTimeout) {
+                                                                                 clearTimeout(startTimeout);
+                                                                             }
+                                                                             tournamentStartTime = Date.now() + DEFAULT_START_DELAY_MS;
+                                                                              console.log(`New tournament scheduled to start at ${new Date(tournamentStartTime).toLocaleString()}`);
+                                                                              startTimeout = setTimeout(startChampionship, DEFAULT_START_DELAY_MS);
+                                                                             // Re-register microbots and notify clients
+                                                                             ensureMicrobotsRegistered();
+                                                                              broadcast({ type: "START_TIME_DELTA", delta: DEFAULT_START_DELAY_MS });
+                                                                              broadcast({ type: "NEW_CONTEST_BEGINS", players: players, matchMatrix: {}, config: CONFIG });
+                                                                              broadcast({ type: 'PLAYERS_LIST', players });
+                                                                         }
                                                    return;
                                               }
 
@@ -388,26 +322,26 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                        console.log(`Match delay updated to ${MATCH_DELAY_MS}ms`);
                                                   }
                                                    broadcast({ type: "CONFIG_UPDATED", config: CONFIG });
-                                                   ws.send(JSON.stringify({ type: "ADMIN_CONFIG_UPDATED" }));
+                                                   socket.send({ type: "ADMIN_CONFIG_UPDATED" });
                                                     return;
                                               }
 
                                               if (data.type === "ADMIN_REQUEST_BOT_CODE") {
                                                  const { email } = data;
                                                   if (players[email]) {
-                                                      ws.send(JSON.stringify({
+                                                      socket.send({
                                                                                 type: "ADMIN_BOT_CODE_RESPONSE",
                                                                                 email: email,
                                                                                 name: players[email].name,
                                                                                 code: players[email].code
-                                                                            }));
+                                                                            });
                                                   }
                                                   else {
-                                                         ws.send(JSON.stringify({
+                                                         socket.send({
                                                                                   type: "ADMIN_BOT_CODE_RESPONSE",
                                                                                   email: email,
                                                                                   error: "Player not found"
-                                                                                }));
+                                                                                });
                                                   }
                                                     return;
                                               }
@@ -421,33 +355,32 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
 
                                                     // Check for duplicate email registration (allow reconnection before tournament starts)
                                                     if (players[email]) {
-                                                        const oldWs = emailToClientMap.get(email);
-                                                         const alreadyConnected = oldWs && oldWs.readyState === 1 && oldWs !== ws;
+                                                        const oldSocket = emailToClientMap.get(email);
+                                                         const alreadyConnected = oldSocket && oldSocket.connected && oldSocket !== socket;
                                                           if (tournamentStarted || alreadyConnected) {
                                                               let errmessage = `Player with email ${email} is already registered`;
                                                               console.log(errmessage);
-                                                              ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                              socket.send({ type: "REGISTRATION_ERROR", message: errmessage });
                                                                return;
                                                           }
                                                            //else
                                                             {
                                                              // Allow reconnection if the previous websocket is no longer active
                                                              console.log(`Player ${email} is reconnecting...`);
-                                                             if (oldWs) {
-                                                                 clientEmailMap.delete(oldWs);
+                                                             if (oldSocket) {
+                                                                 clientEmailMap.delete(oldSocket);
                                                              }
-                                                              clientEmailMap.set(ws, email);
-                                                              emailToClientMap.set(email, ws);
-                                                            
-                                                             ws.send(JSON.stringify({ type: "REGISTRATION_SUCCESS", message: "Reconnected!" }));
-                                                             broadcast({ type: "NEW_PLAYER", name });
+                                                              clientEmailMap.set(socket, email);
+                                                              emailToClientMap.set(email, socket);
+                                                 
+                                                             socket.send({ type: "REGISTRATION_SUCCESS", message: "Reconnected!" });
                                                             
                                                              // Notify admin about reconnection
-                                                             if (adminClient && adminClient.readyState === 1) {
-                                                                 adminClient.send(JSON.stringify({
+                                                             if (adminClient && adminClient.connected) {
+                                                                 adminClient.send({
                                                                                                      type: "PLAYER_RECONNECTED",
                                                                                                      email: email
-                                                                                                 }));
+                                                                                                 });
                                                              }
                                                               return;
                                                             }
@@ -457,13 +390,13 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                        if (!email || !email.trim()) {
                                                            let errmessage = `Registration failed: email is required`;
                                                             console.log(errmessage);
-                                                            ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                            socket.send({ type: "REGISTRATION_ERROR", message: errmessage });
                                                              return;
                                                        }
                                                        if (!name || !name.trim()) {
                                                            let errmessage = `Registration failed: bot name is required`;
                                                             console.log(errmessage);
-                                                            ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                            socket.send({ type: "REGISTRATION_ERROR", message: errmessage });
                                                              return;
                                                        }
                                                        // Ensure unique display names (no conflicting bot names)
@@ -471,7 +404,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                         if (nameConflict) {
                                                            let errmessage = `Registration failed: bot name "${name}" is already taken`;
                                                             console.log(errmessage);
-                                                            ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                            socket.send({ type: "REGISTRATION_ERROR", message: errmessage });
                                                              return;
                                                         }
 
@@ -479,7 +412,7 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                     if (code.length > CONFIG.maxCodeSize) {
                                                         let errmessage = `Bot Code too big (must be <= ${CONFIG.maxCodeSize} characters) for player: ${name} (${email})`;
                                                          console.log(errmessage);
-                                                         ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                         socket.send({ type: "REGISTRATION_ERROR", message: errmessage });
                                                           return;
                                                     }
                                                         // Try to compile the Bot code in virtual machine to catch syntax errors before registration
@@ -530,35 +463,34 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                      // Broadcast updated players list to all clients (so frontends can populate selectors)
                                                                           broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
                                                                           // Also notify the admin client about the updated players list
-                                                                          if (adminClient && adminClient.readyState === 1) {
-                                                                              try { adminClient.send(JSON.stringify({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted })); } catch(e){}
+                                                                          if (adminClient && adminClient.connected) {
+                                                                              try { adminClient.send({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted }); } catch(e){}
                                                                           }
                                                                       // Track the client-to-email mapping for disconnection detection
-                                                                      clientEmailMap.set(ws, email);
-                                                                      emailToClientMap.set(email, ws);
-                                                                       clientHeartbeat.set(ws, Date.now()); // Initialize heartbeat tracking
+                                                                      clientEmailMap.set(socket, email);
+                                                                      emailToClientMap.set(email, socket);
                                                                       
                                                                       // Broadcast the new player to all connected clients
                                                                        console.log(`... Registered!  Total players: ${playersNumber}`);
-                                                                       ws.send(JSON.stringify({ type: "REGISTRATION_SUCCESS", message: "Registered!" }));
+                                                                       socket.send({ type: "REGISTRATION_SUCCESS", message: "Registered!" });
                                                                         broadcast({ type: "NEW_PLAYER", name });
                                                                         
                                                                         // Send detailed registration info to the admin client
-                                                                        if (adminClient && adminClient.readyState === 1) {
-                                                                            adminClient.send(JSON.stringify({
+                                                                        if (adminClient && adminClient.connected) {
+                                                                            adminClient.send({
                                                                                                                 type: "PLAYER_REGISTERED",
                                                                                                                 email: email,
                                                                                                                 name: name,
                                                                                                                 registrationTime: registrationTime,
                                                                                                                 status: "connected"
-                                                                                                            }));
+                                                                                                            });
                                                                         }
                                                         }
                                                         catch (err) {
                                                             let errmessage = `Error in Bot code for player: ${name} (${email}): ${err.message}`;
                                                             console.log(errmessage);
                                                              delete players[email];
-                                                             ws.send(JSON.stringify({ type: "REGISTRATION_ERROR", message: errmessage }));
+                                                             socket.send({ type: "REGISTRATION_ERROR", message: errmessage });
                                                         }
                                                 }
                                          }
@@ -569,26 +501,25 @@ let MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                        );
 
                    // Handle client disconnect
-                   ws.on('close', () => {
-                       if (adminClient === ws) {
+                   socket.on('disconnect', () => {
+                       if (adminClient === socket) {
                            adminClient = null;
                            console.log("Admin client disconnected");
                        }
                        
                        // Check if this was a registered player
-                       const email = clientEmailMap.get(ws);
+                       const email = clientEmailMap.get(socket);
                        if (email) {
                            console.log(`Player ${email} disconnected`);
-                           clientEmailMap.delete(ws);
+                           clientEmailMap.delete(socket);
                            emailToClientMap.delete(email);
-                           clientHeartbeat.delete(ws); // Remove heartbeat tracking
                            
                            // Notify the admin client about the disconnection
-                           if (adminClient && adminClient.readyState === 1) {
-                               adminClient.send(JSON.stringify({
+                           if (adminClient && adminClient.connected) {
+                               adminClient.send({
                                    type: "PLAYER_DISCONNECTED",
                                    email: email
-                               }));
+                               });
                            }
                        }
                    });
@@ -768,8 +699,8 @@ let isPaused = false;
                                                                                                       if(!CONFIG.educational)
                                                                                                          resetConfigForbiddenMoves();
                                                                                                         // Notify admin panel about config changes during tournament
-                                                                                                        if (adminClient && adminClient.readyState === 1) 
-                                                                                                           adminClient.send(JSON.stringify({ type: "CONFIG_UPDATED", config: CONFIG }));
+if (adminClient && adminClient.connected) 
+                                                                                                           adminClient.send({ type: "CONFIG_UPDATED", config: CONFIG });
                                              
                                                                                                      }
                                                   
@@ -849,10 +780,14 @@ let isPaused = false;
                                                                 // Apply Valid Move
                                                                 state.piles[move.pileIndex] -= move.count;
                                                                 currentPlayer.nMoves = (currentPlayer.nMoves || 0) + 1;
+                                                                    
 
+                                                                 
+                                                                 
                                                                 // Compute xor-sum after the move and update Intellectual Rate (iRate) if xor==0
-                                                                xorSum = state.piles
-                                                                                   .reduce((acc, v) => acc ^ v, 0);
+                                                                //xorSum = evaluateXORState(state.piles);
+                                                                xorSum = evaluateMEXState(state.piles);
+
                                                                  if (xorSum === 0) {
                                                                     currentPlayer.iRate = (currentPlayer.iRate || 0) + 1;
                                                                     //console.log(`${currentPlayer.name} achieved xor-sum 0 — iRate now ${currentPlayer.iRate}`);
@@ -985,13 +920,66 @@ var Matrix = [];
                                               
             }
 
-            function calculateTotalGamesToPlay() {
-                const N = Object.keys(players).length;
-                return NUMBER_OF_GAMES_PER_MATCH * N * (N - 1) / 2;
-            }
 
 
-// --- HELPER FUNCTIONS ---
+// *** HELPER FUNCTIONS ************************************************************************************************************
+
+                function calculateTotalGamesToPlay() {
+                                                       const N = Object.keys(players).length;
+                                                        return NUMBER_OF_GAMES_PER_MATCH * N * (N - 1) / 2;
+                }
+
+                function evaluateXORState(piles) {return piles.reduce((acc, v) => acc ^ v, 0);}
+
+                function evaluateMEXState(piles) {
+                    const mode = CONFIG.mode;
+                    const forbidden = CONFIG.forbidden || [];
+                    const maxPile = piles.length ? Math.max(...piles) : 0;
+                    const  forbiddenSet = new Set(forbidden);
+
+                    // Compute Grundy values for all pile sizes up to the largest pile.
+                    const  grundy = Array(maxPile + 1).fill(0);
+                     for (let n = 1; n <= maxPile; n++) {
+                         const reachable = new Set();
+                          for (let k = 1; k <= n; k++) {
+                              if (forbiddenSet.has(k)) continue;
+
+                               reachable.add(grundy[n - k]);
+                          }
+                          let mex = 0;
+                           while (reachable.has(mex)) mex++;
+
+                            grundy[n] = mex;
+                     }
+
+                      const x = piles.reduce((acc, p) => acc ^ grundy[p], 0);
+                    const isMisere = mode === 'GIVEAWAY';
+
+                           if (isMisere) {
+                               let ones = 0;
+                               let big = 0;
+                               for (const p of piles) {
+                                   if (p === 1) ones++;
+                                   else if (p > 1) big++;
+                               }
+       
+                               if (big <= 1) {
+                                   for (let i = 0; i < piles.length; i++) {
+                                       if (piles[i] > 0) {
+                                           const take = big ? piles[i] - ((ones % 2) ? 1 : 0) : 1;
+                                           if (take >= 1 && !forbiddenSet.has(take) && take <= piles[i]) {
+                                               return x;
+                                           }
+                                       }
+                                   }
+                                    return 0;
+                               }
+                           }
+                           // else normal play, just 
+                                 return x;
+
+                }
+
                 function isValidMove(move, piles) {
                                                     if (!move || move.pileIndex === undefined) return false; // move must exists and specify a existing pile index
                                                     if (CONFIG.forbidden.includes(move.count)) return false; // Check if the move count is in the forbidden list
@@ -1021,7 +1009,7 @@ var Matrix = [];
                 }
                 
                 function broadcast(data) {
-                                          wss.clients.forEach(client => client.send(JSON.stringify(data)));
+                                          io.send(data);
                 }
                 async function delay(time) {
                                             await new Promise(delayresolve => setTimeout(delayresolve, time /*ms*/)); // Slow down for dashboard viewers
