@@ -1,4 +1,4 @@
-let ws=null; // used for WebSocket connection to the server for real-time updates
+let socket = null; // used for Socket.IO connection to the server for real-time updates
 const logo             = document.getElementById('logo');
 const deadlineText     = document.getElementById('deadline-timer');
 const regView          = document.getElementById('registration-view');
@@ -31,23 +31,41 @@ const BOT_AVATARS = [
     '🐲','🐉','🦈','🦑','🦐','🦀','🧸','🦝'
 ];
 
-    ///  Establish WebSocket connection to the server . Called when this page loaded  to be ready to receive real-time updates about the tournament and game state
+    ///  Establish Socket.IO connection to the server. Called when this page loads to receive real-time tournament updates.
     function connect() {
-                        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-                         ws = new WebSocket(`${protocol}://${window.location.host}`);
+                        socket = io();
 
-                                         //// -------- Listen for messages from the server ----
-                          ws.onmessage = (event) => {
-                                                     const data = JSON.parse(event.data);
-                                                      handleServerEvent(data); // Main dispatcher for all incoming events from the server
-                                         };
+                        socket.on('connect', () => {
+                            document.getElementById('status-text').innerText = "Connected to Arena";
+                            try {
+                                if (socket && socket.connected) {
+                                    socket.send({ type: 'VISIBILITY', state: document.visibilityState });
+                                }
+                            } catch (e) {}
+                        });
 
-                                         //// -------- Display connection status ------------------------------------
-                          ws.onopen    = () => {
-                                              document.getElementById('status-text').innerText = "Connected to Arena";
-                                         };
-                          
+                        socket.on('disconnect', () => {
+                            document.getElementById('status-text').innerText = "Disconnected from Arena";
+                        });
+
+                        socket.on('message', (payload) => {
+                            const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
+                            handleServerEvent(data);
+                        });
+
+                        socket.on('connect_error', (err) => {
+                            document.getElementById('status-text').innerText = `Connection error: ${err.message}`;
+                        });
     }
+
+// Notify server when tab visibility changes (helps explain background throttling)
+document.addEventListener('visibilitychange', () => {
+    try {
+        if (socket && socket.connected) {
+            socket.send({ type: 'VISIBILITY', state: document.visibilityState });
+        }
+    } catch (e) {}
+});
 
 let tournamentState = "not_started"; // States: not_started, running, paused, ended         
 
@@ -76,11 +94,11 @@ let tournamentState = "not_started"; // States: not_started, running, paused, en
                                                      name: avatarName,
                                                      code
                                     };
-                                    if (ws && ws.readyState === WebSocket.OPEN) {
-                                         ws.send(JSON.stringify(payload));
+                                    if (socket && socket.connected) {
+                                         socket.send(payload);
                                      }
                                      else {
-                                           alert('WebSocket connection is not established');
+                                           alert('Socket.IO connection is not established');
                                      }
                                            
         }
@@ -259,17 +277,19 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                               }
                                               
                                               if (data.type === "DISQUALIFIED_FOR_ERROR") {
-                                                                                        logEvent(`❌ ${data.player} DISQUALIFIED for error: ${data.error}`);
+                                                                                        logEvent(`❌ ${data.player} DISQUALIFIED for error: ${data.error} details: ${data.details}`);
+                                                                                         drawUpdatePiles(data);
                                               }
                                               
                                               if (data.type === "DISQUALIFIED_FOR_INVALID_MOVE") {
                                                                                              logEvent(`❌ ${data.player} DISQUALIFIED for invalid move: ${JSON.stringify(data.invalidMove)}`);
+                                                                                             drawUpdatePiles(data);
                                               }
 
                                               if (data.type === "HEARTBEAT_REQUEST") {
                                                   // Respond to server heartbeat to confirm connection
-                                                  if (ws && ws.readyState === WebSocket.OPEN) {
-                                                      ws.send(JSON.stringify({ type: "HEARTBEAT_RESPONSE" }));
+                                                  if (socket && socket.connected) {
+                                                      socket.send({ type: "HEARTBEAT_RESPONSE" });
                                                   }
                                                   //let hljs = window.hljs;
                                                       // hljs.highlightAll(); // Highlight any new code snippets in the log
@@ -357,6 +377,7 @@ var countdownInterval=null;
             // Function to update the piles display based on the current game state
             function drawUpdatePiles(data) {
                 let forb = MATCH_CONFIG.forbidden ;
+                let move   = data.count;
                 let piles  = data.piles;
                 let piles_ = MATCH_CONFIG.piles;
                 let player = data.player.trim();
@@ -364,21 +385,27 @@ var countdownInterval=null;
                  piles.forEach((count, index) => {
                                                   let pile = "🪙".repeat(count); 
                                                   let emptySlots = piles_[index] - count;
-                                                      if(emptySlots > 0) {
+                                                      if(emptySlots > 0) 
                                                           pile += "⚫️".repeat(emptySlots); // Add empty slot symbols to represent remaining capacity of the pile
-                                                        }
-                                                   let P = [...pile];
-                                                    for(let k = 0; k < forb.length; k++){ 
-                                                        let i=count-forb[k];
-                                                         if(i>=0) P[i] = `❌`; //'💥';
-                                                    }
-                                                     if(index === data.movedFrom) {
-                                                         P[count] = player;
-                                                      }    
-                                                 
-                                                    //console.log(P)  
-                                                      pile = P.join('');     
-                                                       pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
+                                                        
+                                                       let P = [...pile];
+                                                         if(index === data.movedFrom) {
+                                                             P[count] = player;
+                                                              if(forb.includes(move)){
+                                                                P[count] = '💥';
+                                                                P[count+1] = player;
+                                                              }  
+                                                              /*                                                            
+                                                              for(let k = 0; k < forb.length; k++){ 
+                                                                  let i=count-forb[k];
+                                                                   if(i>=0) ; '❌'; //;
+                                                               }
+                                                              */    
+                                                          }    
+                                                     
+                                                        //console.log(P)  
+                                                          pile = P.join('');     
+                                                           pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
                                                  }
                               );
                                let winnerMessage =`✅ Winner is `;
@@ -442,6 +469,7 @@ var countdownInterval=null;
 
                                                                          for (let i = 0; i < M; i++) {
                                                                              for (let j = 0; j < M; j++) {
+                                                                                  if (i === j) continue; // Skip diagonal
                                                                                  let id = `${i}*${j}`;
                                                                                   let cell = document.getElementById(id);
                                                                                    let  winsA = "."
@@ -661,40 +689,42 @@ function getUsedAvatars() {
 
 function buildAvatarPicker() {
     const picker = document.getElementById('avatar-picker');
-    if (!picker) return;
-    picker.innerHTML = '';
+     if (!picker) return;
 
-    const usedAvatars = getUsedAvatars();
-    const table = document.createElement('table');
-    table.className = 'avatar-grid';
-
-    for (let row = 0; row < AVATAR_GRID_SIZE; row++) {
-        const tr = document.createElement('tr');
-        for (let col = 0; col < AVATAR_GRID_SIZE; col++) {
-            const index = row * AVATAR_GRID_SIZE + col;
-            const avatar = BOT_AVATARS[index] || '';
-            const td = document.createElement('td');
-            td.className = 'avatar-cell';
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'avatar-option';
-            button.innerText = avatar;
-            button.title = avatar ? `Select ${avatar} as your bot avatar` : '';
-            button.dataset.avatar = avatar;
-            if (!avatar || usedAvatars.has(avatar)) {
-                button.disabled = true;
-                button.classList.add('avatar-unavailable');
-            }
-            if (selectedAvatar === avatar) {
-                button.classList.add('avatar-selected');
-            }
-            button.onclick = () => selectAvatar(avatar);
-            td.appendChild(button);
-            tr.appendChild(td);
-        }
-        table.appendChild(tr);
-    }
-    picker.appendChild(table);
+         picker.innerHTML = '';
+     
+         const usedAvatars = getUsedAvatars();
+         const table = document.createElement('table');
+          table.className = 'avatar-grid';
+     
+          for (let row = 0; row < AVATAR_GRID_SIZE; row++) {
+              const tr = document.createElement('tr');
+              for (let col = 0; col < AVATAR_GRID_SIZE; col++) {
+                  const index = row * AVATAR_GRID_SIZE + col;
+                  const avatar = BOT_AVATARS[index] || '';
+                  const td = document.createElement('td');
+                   td.className = 'avatar-cell';
+                  const button = document.createElement('button');
+                   button.type = 'button';
+                   button.className = 'avatar-option';
+                   button.innerText = avatar;
+                   button.title = avatar ? `Select ${avatar} as your bot avatar` : '';
+                   button.dataset.avatar = avatar;
+                    if (!avatar || usedAvatars.has(avatar)) {
+                        button.disabled = true;
+                        button.classList.add('avatar-unavailable');
+                    }
+                    if (selectedAvatar === avatar) {
+                        button.classList.add('avatar-selected');
+                    }
+                                     //------------------------------ Handle avatar selection  
+                    button.onclick = () => selectAvatar(avatar);
+                     td.appendChild(button);
+                      tr.appendChild(td);
+              }
+              table.appendChild(tr);
+          }
+           picker.appendChild(table);
 }
 
 function selectAvatar(avatar) {
@@ -705,19 +735,19 @@ function selectAvatar(avatar) {
     }
     selectedAvatar = avatar;
     document.getElementById('avatar-name').value = avatar;
-    document.getElementById('avatar-picker-help').innerText = `Selected: ${avatar}. This symbol will be your bot name.`;
+    //document.getElementById('avatar-picker-help').innerText = `Selected: ${avatar}. This symbol will be your bot name.`;
     updateAvatarPicker();
 }
 
 function updateAvatarPicker() {
     buildAvatarPicker();
-    const help = document.getElementById('avatar-picker-help');
-    const usedCount = getUsedAvatars().size;
-    if (help) {
-        help.innerText = selectedAvatar
-            ? `Selected: ${selectedAvatar}. This symbol will be your bot name.`
-            : `Choose one cheerful symbol. ${usedCount} avatars are already taken in this tournament.`;
-    }
+    //const help = document.getElementById('avatar-picker-help');
+    //const usedCount = getUsedAvatars().size;
+    //if (help) {
+    //    help.innerText = selectedAvatar
+    //        ? `Selected: ${selectedAvatar}. This symbol will be your bot name.`
+    //        : `Choose one cheerful symbol. ${usedCount} avatars are already taken in this tournament.`;
+    //}
 }
 
 // Call initialization when page loads

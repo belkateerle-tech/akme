@@ -1,5 +1,5 @@
 // Admin Panel JavaScript
-let ws = null;
+let socket = null;
 let isAuthenticated = false;
 let players = {};
 let playerEmails = []; // Track player emails for dropdown
@@ -28,42 +28,47 @@ let currentTotalGamesCompleted = 0;
              * Connect to WebSocket server for real-time updates
              */
             function connectWebSocket(password) {
-                                        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
                                         try {
-                                            ws = new WebSocket(`${protocol}://${window.location.host}`);
+                                            socket = io();
                                         } catch (error) {
-                                            console.error('Error connecting to WebSocket:', error);
+                                            console.error('Error connecting to Socket.IO server:', error);
                                             return;
                                         }
-                                                        //------------------------------------------------ 
-                                            ws.onopen = () => {
+
+                                        //------------------------------------------------ 
+                                            socket.on('connect', () => {
                                                                 const errorMsg = document.getElementById('login-error');
                                                                  errorMsg.textContent = `Admin connected to Server at time: ${new Date().toLocaleTimeString()}, try password ....`;
                                                                  console.log(errorMsg.textContent);
-                                                                  if(password == undefined) return;
+                                                                  if (password == undefined) return;
                                                                 updateConnectionStatus('Connected', '#00ffcc');
-                                                                ws.send(JSON.stringify({ type: 'ADMIN_LOGIN', password }));
-                                                              };
+                                                                socket.send({ type: 'ADMIN_LOGIN', password });
+                                                              });
                                                         //------------------------------------------------
-                                            ws.onmessage = (event) => {
-                                                                        const data = JSON.parse(event.data);
+                                            socket.on('message', (payload) => {
+                                                                        const data = typeof payload === 'string' ? JSON.parse(payload) : payload;
                                                                         if (data.type === 'ADMIN_AUTH_FAILURE') {
                                                                             const errorMsg = document.getElementById('login-error');
                                                                              errorMsg.textContent = data.message || 'Invalid password';
-                                                                              ws.close();
-                                                                               ws = null;
+                                                                              socket.disconnect();
+                                                                               socket = null;
                                                                                 return;
                                                                         }
 
                                                                             handleServerEvent(data);
-                                                                    };
+                                                                    });
                                                          //------------------------------------------------
-                                            ws.onerror = (error) => {
-                                                                     console.error('WebSocket error:', error);
+                                            socket.on('connect_error', (error) => {
+                                                                     console.error('Socket.IO connect error:', error);
                                                                      updateConnectionStatus('Error', '#e94560');
-                                                                    };
+                                                                    });
                                                          //------------------------------------------------
-                                            ws.onclose = () => {
+                                            socket.on('error', (error) => {
+                                                                     console.error('Socket.IO error:', error);
+                                                                     updateConnectionStatus('Error', '#e94560');
+                                                                    });
+                                                         //------------------------------------------------
+                                            socket.on('disconnect', () => {
                                                                 const errorMsg = document.getElementById('login-error');
                                                                  errorMsg.textContent = 'Admin disconnected from Server, time:' + new Date().toLocaleTimeString();
                                                                  console.log(errorMsg.textContent );
@@ -73,8 +78,8 @@ let currentTotalGamesCompleted = 0;
                                                                         timerEl.textContent = 'Admin disconnected from Server';
                                                                     
                                                                 // Attempt to reconnect after 3 seconds
-                                                                setTimeout(connectWebSocket, 3000);
-                                                               };
+                                                                setTimeout(() => connectWebSocket(password), 3000);
+                                                               });
                 }
 
 /**
@@ -414,10 +419,10 @@ function showBotCode() {
         // Request code from server if not available
         codeElement.textContent = 'Loading code...';
         codeDisplay.style.display = 'block';
-        ws.send(JSON.stringify({
-            type: 'ADMIN_REQUEST_BOT_CODE',
+        socket.send({
+            type  : 'ADMIN_REQUEST_BOT_CODE',
             email: email
-        }));
+        });
     } else {
         // Display already loaded code with syntax highlighting
         codeElement.textContent = player.code;
@@ -436,12 +441,12 @@ function showBotCode() {
  * Send tournament start command to server
  */
 function manualStartTournament() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!socket || !socket.connected) {
         alert('Not connected to server');
         return;
     }
     
-    ws.send(JSON.stringify({ type: 'ADMIN_START' }));
+    socket.send({ type: 'ADMIN_START' });
     console.log('Sent tournament start command');
 }
 
@@ -449,12 +454,12 @@ function manualStartTournament() {
  * Send pause command to server
  */
 function pauseTournament() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!socket || !socket.connected) {
         alert('Not connected to server');
         return;
     }
     
-    ws.send(JSON.stringify({ type: 'ADMIN_PAUSE' }));
+    socket.send({ type: 'ADMIN_PAUSE' });
     console.log('Sent pause command');
 }
 
@@ -462,12 +467,12 @@ function pauseTournament() {
  * Send resume command to server
  */
 function resumeTournament() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!socket || !socket.connected) {
         alert('Not connected to server');
         return;
     }
     
-    ws.send(JSON.stringify({ type: 'ADMIN_RESUME' }));
+    socket.send({ type: 'ADMIN_RESUME' });
     console.log('Sent resume command');
 }
 
@@ -475,13 +480,13 @@ function resumeTournament() {
  * Send new tournament command to server
  */
 function newTournament() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!socket || !socket.connected) {
         alert('Not connected to server');
         return;
     }
     
     if (confirm('Are you sure you want to start a new tournament? This will reset all data.')) {
-        ws.send(JSON.stringify({ type: 'ADMIN_NEW_TOURNAMENT' }));
+        socket.send({ type: 'ADMIN_NEW_TOURNAMENT' });
         console.log('Sent new tournament command');
     }
 }
@@ -490,7 +495,7 @@ function newTournament() {
  * Update game configuration
  */
 function updateConfiguration() {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!socket || !socket.connected) {
         alert('Not connected to server - refresh the page and login again');
          return;
     }
@@ -514,7 +519,7 @@ function updateConfiguration() {
          return;
     }
     
-    ws.send(JSON.stringify({
+    socket.send({
                             type  : 'ADMIN_UPDATE_CONFIG',
                             config: {
                                      piles,
@@ -525,7 +530,7 @@ function updateConfiguration() {
                                      moveDelayMs: moveDelayInput,
                                      matchDelayMs: matchDelayInput
                                    }
-                           }));
+                           });
     
     console.log('Sent config update:', { piles, forbidden, maxCoins, baseTime, moveDelayMs: moveDelayInput, matchDelayMs: matchDelayInput });
 }
@@ -535,8 +540,8 @@ function updateConfiguration() {
  */
 function logout() {
     isAuthenticated = false;
-    if (ws) {
-        ws.close();
+    if (socket) {
+        socket.disconnect();
     }
     if (countdownInterval) {
         clearInterval(countdownInterval);
