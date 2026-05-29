@@ -418,7 +418,7 @@ var countdownInterval=null;
                                                                                   return tbA - tbB;
                                                            })
                                                            .forEach(p => {
-                                                               const relIR = p.nMoves ? ((Number(p.iRate) || 0) / Number(p.nMoves) * 100).toFixed(2) : '0.00';
+                                                               const relIR = p.nMoves ? ((Number(p.iRate) || 0) / Number(p.nMoves) * 100).toFixed(1) : '0.0';
                                                                body.innerHTML += `<tr><td>${p.name}</td><td>${p.score}</td><td>${p.timeBank}ms</td><td>${relIR}%</td></tr>`;
                                                            });
                 }

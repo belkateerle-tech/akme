@@ -745,7 +745,8 @@ let isPaused = false;
                                    for (let game = 1; game <= N; game++) {
                                         if(game%2===0){
                                            resetConfigPiles(game);
-                                            resetConfigForbiddenMoves();
+                                           if(!CONFIG.educational)
+                                              resetConfigForbiddenMoves();
                                              // Notify admin panel about config changes during tournament
                                              if (adminClient && adminClient.readyState === 1) 
                                                 adminClient.send(JSON.stringify({ type: "CONFIG_UPDATED", config: CONFIG }));
@@ -780,6 +781,7 @@ let isPaused = false;
                                                          console.log(`${currentPlayer.name} (${currentPlayerEmail}) made Error :`,report.error);
                                                          currentPlayer.timeBank += CONFIG.baseTime; // Penalize the player 
                                                          broadcast({ type: "DISQUALIFIED_FOR_ERROR", error: report.error, player: currentPlayer.name  });
+                                                         currentPlayer.score  -= 2;
                                                          opponentPlayer.score += 1;
                                                           recordMatchResult(emailA, emailB, opponentPlayerEmail, 0);
                                                            getMatchMatrixDisplay();
@@ -795,6 +797,7 @@ let isPaused = false;
                                                               console.log(`${currentPlayer.name} (${currentPlayerEmail}) try to do invalid move:`,move, " for piles: ", state.piles);
                                                               currentPlayer.timeBank += CONFIG.baseTime; // Penalize the player 
                                                               broadcast({ type: "DISQUALIFIED_FOR_INVALID_MOVE", invalidMove: move, piles: state.piles, player: currentPlayer.name  });
+                                                               currentPlayer.score  -= 1;
                                                                opponentPlayer.score += 1; 
                                                                recordMatchResult(emailA, emailB, opponentPlayerEmail);
                                                                 getMatchMatrixDisplay();
