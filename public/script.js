@@ -783,5 +783,136 @@ function initializeGameLogToggle() {
     });
 }
 
+// Initialize Video Intro
+function initializeVideoIntro() {
+    const videoContainer = document.getElementById('video-intro-container');
+    const introVideo = document.getElementById('intro-video');
+    const logoElement = document.getElementById('logo');
+    
+    if (!videoContainer || !introVideo) return;
+    
+    let playCount = 0; // Track how many times the video has played
+    const maxPlays = 2; // Video should play twice
+    let isPlayingReverse = false; // Track if we're playing in reverse
+    let reverseAnimationId = null; // Store animation frame ID
+    
+    // Function to calculate precise logo position for scaling
+    function calculateLogoTransform() {
+        if (!logoElement) return { x: 0, y: 0 };
+        
+        const logoRect = logoElement.getBoundingClientRect();
+        
+        // Center of viewport (where video starts)
+        const viewportCenterX = window.innerWidth / 2;
+        const viewportCenterY = window.innerHeight / 2;
+        
+        // Center of logo element
+        const logoCenterX = logoRect.left + logoRect.width / 2;
+        const logoCenterY = logoRect.top + logoRect.height / 2;
+        
+        // Calculate translation from viewport center to logo center
+        const translateX = logoCenterX - viewportCenterX;
+        const translateY = logoCenterY - viewportCenterY;
+        
+        return { x: translateX, y: translateY };
+    }
+    
+    // Function to play video in reverse with optimized performance
+    function playReverse() {
+        isPlayingReverse = true;
+        introVideo.pause();
+        
+        if (!introVideo.duration || !isFinite(introVideo.duration)) {
+            // Video duration not ready, try again
+            setTimeout(playReverse, 100);
+            return;
+        }
+        
+        const videoDuration = introVideo.duration;
+        const reverseDuration = 2000; // 2 seconds for reverse playback
+        const startTime = performance.now();
+        let lastUpdate = startTime;
+        
+        function reverseFrame(currentTime) {
+            // Only update every 40ms to reduce CPU usage (still smooth at ~25fps)
+            if (currentTime - lastUpdate < 40) {
+                reverseAnimationId = requestAnimationFrame(reverseFrame);
+                return;
+            }
+            lastUpdate = currentTime;
+            
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / reverseDuration, 1);
+            
+            // Calculate new playback position (going backward from end to start)
+            const newTime = Math.max(0, videoDuration - (progress * videoDuration));
+            introVideo.currentTime = newTime;
+            
+            if (progress < 1) {
+                reverseAnimationId = requestAnimationFrame(reverseFrame);
+            } else {
+                // Reverse playback finished, start dissolve animation
+                playCount++;
+                
+                // Calculate logo position and set CSS variables
+                const logoTransform = calculateLogoTransform();
+                document.documentElement.style.setProperty('--logo-translate-x', `${logoTransform.x}px`);
+                document.documentElement.style.setProperty('--logo-translate-y', `${logoTransform.y}px`);
+                
+                // Apply dissolve animation
+                introVideo.classList.add('dissolve');
+                
+                // Hide after animation completes
+                setTimeout(() => {
+                    videoContainer.classList.add('hidden');
+                    regView.classList.remove('hidden');
+                }, 1500); // Match the CSS transition duration
+            }
+        }
+        
+        reverseAnimationId = requestAnimationFrame(reverseFrame);
+    }
+    
+    // Handle video end (normal forward playback)
+    introVideo.addEventListener('ended', () => {
+        if (!isPlayingReverse) {
+            playCount++;
+            
+            if (playCount < maxPlays) {
+                // Play the video in reverse on second playback
+                playReverse();
+            } else {
+                // This shouldn't happen with our logic, but just in case
+                videoContainer.classList.add('hidden');
+                regView.classList.remove('hidden');
+            }
+        }
+    });
+    
+    // Handle video errors
+    introVideo.addEventListener('error', () => {
+        console.error('Video failed to load. Skipping intro.');
+        if (reverseAnimationId) cancelAnimationFrame(reverseAnimationId);
+        videoContainer.classList.add('hidden');
+        regView.classList.remove('hidden');
+    });
+    
+    // Start playing the video normally
+    introVideo.play().catch(err => {
+        console.error('Error playing video:', err);
+        if (reverseAnimationId) cancelAnimationFrame(reverseAnimationId);
+        videoContainer.classList.add('hidden');
+        regView.classList.remove('hidden');
+    });
+}
+
+// Call video intro when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    initializeCodeHighlighting();
+    initializeAvatarPicker();
+    initializeGameLogToggle();
+    initializeVideoIntro();
+});
+
 connect();
 
