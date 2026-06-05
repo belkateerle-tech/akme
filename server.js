@@ -603,11 +603,14 @@ let isPaused = false;
                                try {
                                     // Reset Intellectual Rate and move count for all players at tournament start
                                     Object.values(players).forEach(p => { p.iRate = 0; p.nMoves = 0; });
-                                    totalGamesPlanned = calculateTotalGamesToPlay();
+                                    totalGamesPlanned   = calculateTotalGamesToPlay();
                                     totalGamesCompleted = 0;
-                                    broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
-
-                                    await runRounRobinMatches(); // Main function to run the round-robin matches between all registered players, with the current configuration of piles, forbidden moves, and time limits. This function handles the entire flow of the tournament, including broadcasting updates to the dashboard and saving tournament data for record-keeping. It iterates through all pairs of players, runs matches between them using the runMatch function, and updates the matchMatrix with results for display on the dashboard. After all matches are completed, it broadcasts the final results and resets the tournament state for potential future tournaments.
+                                     broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
+                                       //***************************************************************************************************************************************
+                                      //***************************************************************************************************************************************
+                                     await runRounRobinMatches(); // Main function to run the round-robin matches between all registered players, with the current configuration of piles, forbidden moves, and time limits. This function handles the entire flow of the tournament, including broadcasting updates to the dashboard and saving tournament data for record-keeping. It iterates through all pairs of players, runs matches between them using the runMatch function, and updates the matchMatrix with results for display on the dashboard. After all matches are completed, it broadcasts the final results and resets the tournament state for potential future tournaments.
+                                    //****************************************************************************************************************************************
+                                   //****************************************************************************************************************************************
                                }
                                 finally {
                                          tournamentStarted = false;
@@ -698,10 +701,9 @@ let isPaused = false;
                                                                                                       resetConfigPiles(game);
                                                                                                       if(!CONFIG.educational)
                                                                                                          resetConfigForbiddenMoves();
-                                                                                                        // Notify admin panel about config changes during tournament
-if (adminClient && adminClient.connected) 
-                                                                                                           adminClient.send({ type: "CONFIG_UPDATED", config: CONFIG });
-                                             
+                                                                                                          // Notify admin panel about config changes during tournament
+                                                                                                          if (adminClient && adminClient.connected) 
+                                                                                                              adminClient.send({ type: "CONFIG_UPDATED", config: CONFIG });
                                                                                                      }
                                                   
                                                                                       }
@@ -719,14 +721,14 @@ if (adminClient && adminClient.connected)
                                            broadcast({ type: "CURRENT_FIGHT", fight: { playerA: botA.name, playerB: botB.name, game, totalGames: N }, totalGamesPlanned, totalGamesCompleted, config: CONFIG });
         
                                           // Main game loop for steps of a single game between two Bots while there are still valid moves to be made (not Game Over)
-                                         let currentPlayer = botA; 
-                                         let  opponentPlayer = botB;
-                                          while (!isGameOver(state.piles)) {
-                                         
-                                                   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                                                   let report = runBotSafe(currentPlayer, state.piles);
-                                                   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+                                              let currentPlayer = botA; 
+                                              let  opponentPlayer = botB;
+                                               while (!isGameOver(state.piles)) {
+                                                    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+                                                   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                                   let report = runBotSafe(currentPlayer, state.piles); //!!!!
+                                                 //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                                                //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                                                    let move = report.result;
                                                     if (report.error==="BotError") {
                                                          console.log(`${currentPlayer.name} (${currentPlayerEmail}) Error:`,report.error, ', details: ', report.detail);
@@ -808,7 +810,7 @@ if (adminClient && adminClient.connected)
                                                                       opponentPlayer = players[opponentPlayerEmail];
                     
 
-                                           }
+                                                   }
                                             // Determine Winner & Time Carry-over logic
                                             //if(CONFIG.mode === "NORMAL")                             
                                             let  winnerEmail =   currentPlayerEmail
@@ -930,26 +932,31 @@ var Matrix = [];
                 }
 
                 function evaluateXORState(piles) {return piles.reduce((acc, v) => acc ^ v, 0);}
+/*
+     let forbidden = [2,5] 
+      
 
+*/
                 function evaluateMEXState(piles) {
-                    const mode = CONFIG.mode;
+                    const mode      = CONFIG.mode;
                     const forbidden = CONFIG.forbidden || [];
-                    const maxPile = piles.length ? Math.max(...piles) : 0;
+                    const maxPile   = Math.max(...piles);
                     const  forbiddenSet = new Set(forbidden);
 
                     // Compute Grundy values for all pile sizes up to the largest pile.
                     const  grundy = Array(maxPile + 1).fill(0);
                      for (let n = 1; n <= maxPile; n++) {
                          const reachable = new Set();
+                          // 
                           for (let k = 1; k <= n; k++) {
                               if (forbiddenSet.has(k)) continue;
 
                                reachable.add(grundy[n - k]);
                           }
-                          let mex = 0;
-                           while (reachable.has(mex)) mex++;
-
-                            grundy[n] = mex;
+                           let mex = 0;
+                            while (reachable.has(mex)) mex++;
+                            
+                             grundy[n] = mex;
                      }
 
                       const x = piles.reduce((acc, p) => acc ^ grundy[p], 0);
