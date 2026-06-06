@@ -7,7 +7,7 @@
 
 We have written this `server.js` to be as readable as possible. 
 
-It uses **Express** for the web server, **ws** for the live dashboard, and the **vm** module to run student's Bot code safely.
+It uses **Express** for the web server, **socket.io** for communications to  live dashboards, and the **vm** js virtual machine module to run student's Bots codes safely.
 
 ### 1. Prerequisites
 
