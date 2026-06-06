@@ -391,19 +391,19 @@ var countdownInterval=null;
                                                   // Create a visual representation of the pile with coins and forbidden move indicators
                                                   let count0 = piles_[index];
                                                    let P = Array(count0).fill("⚫️");
-                                                    for(let i=0; i=count0; i++)
+                                                    for(let i=0; i<count0; i++)
                                                         if(i<count){
-                                                          if(forb.includes(count-i))P[i] = "<s>🪙</s>"; // Mark coins that would be taken by a forbidden move with strikethrough  // '❌'; //; '💥'
-                                                          else                      P[i] =    "🪙";
+                                                          if(forb.includes(count-i))P[i] =  "⚫️"; // "<s>🪙</s>"; // Mark coins that would be taken by a forbidden move with strikethrough  // '❌'; //; '💥'
+                                                          else                      P[i] =  "🪙";
                                                         }     
                                                    // If this pile was the one just changed by player, write player name or mark the player that take looser move with strikethrough to indicate he is looser
                                                    if(index === data.movedFrom)
                                                       if(winner==player) P[count] =       player;
-                                                      else               P[count] = `<s>${player}</s>` ;
+                                                      else               P[count] =    `<s>${player}</s>` ;
 
                                                     //console.log(P)  
                                                     let  pile = P.join('');     
-                                                     pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
+                                                     pilesString +=  String(count).padStart(2) + ": " + pile + "<br>";  
                                                  }
                              );
                                let winnerMessage =`✅ Winner is `;
@@ -470,7 +470,7 @@ var countdownInterval=null;
                                                                                  let id = `${i}*${j}`;
                                                                                   let cell = document.getElementById(id);
                                                                                    let  winsA = "."
-                                                                                         if(matrixEntries /*&& matrixEntries[i] && matrixEntries[i][j] */){
+                                                                                         if(matrixEntries?.[i]?.[j]?.winsA){
                                                                                             winsA = matrixEntries[i][j].winsA;
                                                                                              if (cell) 
                                                                                                  cell.innerHTML = `${winsA}`;
