@@ -383,41 +383,36 @@ var countdownInterval=null;
                 let piles  = data.piles;
                 let piles_ = MATCH_CONFIG.piles;
                 let player = data.player.trim();
+                let winner = "";  
+                 if(!data.winnerName)winner = player; 
+                 else                winner = data.winnerName.trim();
                 let pilesString = "";
                  piles.forEach((count, index) => {
-                                                  let pile = "🪙".repeat(count); 
-                                                  let emptySlots = piles_[index] - count;
-                                                      if(emptySlots > 0) 
-                                                          pile += "⚫️".repeat(emptySlots); // Add empty slot symbols to represent remaining capacity of the pile
-                                                        
-                                                       let P = [...pile];
-                                                         if(index === data.movedFrom) {
-                                                             P[count] = player;
-                                                              if(forb.includes(move)){
-                                                                P[count] = '💥';
-                                                                P[count+1] = player;
-                                                              }  
-                                                              /*                                                            
-                                                              for(let k = 0; k < forb.length; k++){ 
-                                                                  let i=count-forb[k];
-                                                                   if(i>=0) ; '❌'; //;
-                                                               }
-                                                              */    
-                                                          }    
-                                                     
-                                                        //console.log(P)  
-                                                          pile = P.join('');     
-                                                           pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
-                                                 }
-                              );
-                               let winnerMessage =`✅ Winner is `;
-                               if(data.winnerName) 
-                                    winnerMessage += data.winnerName;
-                               else winnerMessage = "";
+                                                  // Create a visual representation of the pile with coins and forbidden move indicators
+                                                  let count0 = piles_[index];
+                                                   let P = Array(count0).fill("⚫️");
+                                                    for(let i=0; i=count0; i++)
+                                                        if(i<count){
+                                                          if(forb.includes(count-i))P[i] = "<s>🪙</s>"; // Mark coins that would be taken by a forbidden move with strikethrough  // '❌'; //; '💥'
+                                                          else                      P[i] =    "🪙";
+                                                        }     
+                                                   // If this pile was the one just changed by player, write player name or mark the player that take looser move with strikethrough to indicate he is looser
+                                                   if(index === data.movedFrom)
+                                                      if(winner==player) P[count] =       player;
+                                                      else               P[count] = `<s>${player}</s>` ;
 
-                                pilesString += winnerMessage;    
+                                                    //console.log(P)  
+                                                    let  pile = P.join('');     
+                                                     pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
+                                                 }
+                             );
+                               let winnerMessage =`✅ Winner is `;
+                                if(data.winnerName) winnerMessage += data.winnerName;
+                                else                winnerMessage = "";
+
+                                 pilesString += winnerMessage;    
                 const display = document.getElementById('piles-display');
-                  display.innerHTML = pilesString;    
+                                  display.innerHTML = pilesString;    
             }
             function addWinnerToPiles(winnerMessage){
                                                      const display = document.getElementById('piles-display');
