@@ -1,4 +1,4 @@
-# Nim like game platform for testing gamer-bots
+# Nim like Games Platform for Testing Gamer-Bots
 
 <img src="public/logonew.png">
 
