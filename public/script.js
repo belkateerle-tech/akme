@@ -384,7 +384,7 @@ var countdownInterval=null;
                 let piles_ = MATCH_CONFIG.piles;
                 let player = data.player.trim();
                 let winner = "";  
-                 if(!data.winnerName)winner = player; 
+                 if(!data.winnerName)winner = ""; 
                  else                winner = data.winnerName.trim();
                 let pilesString = "";
                  piles.forEach((count, index) => {
@@ -393,17 +393,17 @@ var countdownInterval=null;
                                                    let P = Array(count0).fill("⚫️");
                                                     for(let i=0; i<count0; i++)
                                                         if(i<count){
-                                                          if(forb.includes(count-i))P[i] =  "⚫️"; // "<s>🪙</s>"; // Mark coins that would be taken by a forbidden move with strikethrough  // '❌'; //; '💥'
-                                                          else                      P[i] =  "🪙";
+                                                          if(forb.includes(count-i))P[i] = "⚫️"; // "<span class='forbidden'>🪙</span>" // "⚫️"; // ; // Mark coins that would be taken by a forbidden move with strikethrough  // '❌'; //; '💥'
+                                                          else                      P[i] = "🪙"; //"<span class='valid'>🪙</span>";
                                                         }     
                                                    // If this pile was the one just changed by player, write player name or mark the player that take looser move with strikethrough to indicate he is looser
                                                    if(index === data.movedFrom)
-                                                      if(winner==player) P[count] =       player;
-                                                      else               P[count] =    `<s>${player}</s>` ;
+                                                      if(data.xorsum >=0 ) P[count] =  player; //`<span class='valid'>${player}</span>`;
+                                                      else                 {P[count-1] =   `💥`, P[count] =  player ;}//`<span class='forbidden'>${player}</span>` ;
 
                                                     //console.log(P)  
                                                     let  pile = P.join('');     
-                                                     pilesString +=  String(count).padStart(2) + ": " + pile + "<br>";  
+                                                     pilesString +=  String(count).padStart(2) + ": " + pile + "\n";  
                                                  }
                              );
                                let winnerMessage =`✅ Winner is `;

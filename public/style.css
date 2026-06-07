@@ -204,6 +204,28 @@ button {
     box-shadow: 0 0 18px rgba(142, 246, 228, 0.4);
 }
 
+.forbidden {
+    color: red;
+    font-family: monospace;
+    font-size: 12pt;
+}
+
+.valid {
+    color: green;
+    font-family: monospace;
+    font-size: 12pt;
+}
+/*
+.forbidden {
+    color: #ff6b6b;
+    text-decoration: line-through;
+}
+.valid {
+    color: #00ffcc;
+    font-weight: bold;
+}
+/*
+
 .player-list {
     margin-bottom: 14px;
     color: #8ef6e4;
