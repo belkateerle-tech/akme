@@ -45,7 +45,7 @@ const ADMIN_PASSWORD_HASH = '449904569c19c55d7537de6e946ccedbc4e4a4d874bdf3263e2
          app.get('/adminAKME',
                           //--------------------------------------------------------------------- 
                          (req, res) => {
-                                        console.log("/admin get request received!");
+                                        //console.log("/adminAKME get request received!");
                                         res.sendFile(path.join(__dirname, 'admin.html'));
                          });
 
@@ -53,7 +53,7 @@ const ADMIN_PASSWORD_HASH = '449904569c19c55d7537de6e946ccedbc4e4a4d874bdf3263e2
          app.get('/admin.js',
                           //--------------------------------------------------------------------- 
                          (req, res) => {
-                                        console.log("/admin.js request received!");
+                                        //console.log("/admin.js request received!");
                                         res.sendFile(path.join(__dirname, 'admin.js'));
                          });
          
@@ -938,7 +938,7 @@ var Matrix = [];
                
                 // Calculate current Grundy values with current forbidden moves and max pile size
                 function initializeGrundyCache() {
-                                                  const maxPile          = Math.max(...CONFIG.piles);
+                                                  const maxPile          = CONFIG.maxCoins;
                                                   const forbiddenMoveSet = new Set(CONFIG.forbidden);
                                                          currentGrundyCache = Array(maxPile + 1).fill(0);
                                                   
@@ -954,6 +954,7 @@ var Matrix = [];
 
                                                                   currentGrundyCache[n] = mex;
                                                           }
+                                                           console.log("Grundy initialized with config: ", currentGrundyCache);
                 }                                                                   
 /*
      let forbidden = [2,5] 
