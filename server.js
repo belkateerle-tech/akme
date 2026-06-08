@@ -321,7 +321,9 @@ var MATCH_DELAY_MS = 2000; // Delay between matches in milliseconds to slow down
                                                       MATCH_DELAY_MS = Math.max(0, Math.min(2000, data.config.matchDelayMs));
                                                        console.log(`Match delay updated to ${MATCH_DELAY_MS}ms`);
                                                   }
-                                                   broadcast({ type: "CONFIG_UPDATED", config: CONFIG });
+                                                  // Recalculate Grundy cache if configuration changes that affect it
+                                                  initializeGrundyCache();
+                                                   broadcast({ type: "CONFIG_UPDATED", config: CONFIG, grundyCache: CONFIG.educational ? currentGrundyCache : undefined });
                                                    socket.send({ type: "ADMIN_CONFIG_UPDATED" });
                                                     return;
                                               }
@@ -605,7 +607,9 @@ let isPaused = false;
                                     Object.values(players).forEach(p => { p.iRate = 0; p.nMoves = 0; });
                                     totalGamesPlanned   = calculateTotalGamesToPlay();
                                     totalGamesCompleted = 0;
-                                     broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
+                                    // Initialize Grundy cache with current configuration
+                                    initializeGrundyCache();
+                                    broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted });
                                        //***************************************************************************************************************************************
                                       //***************************************************************************************************************************************
                                      await runRounRobinMatches(); // Main function to run the round-robin matches between all registered players, with the current configuration of piles, forbidden moves, and time limits. This function handles the entire flow of the tournament, including broadcasting updates to the dashboard and saving tournament data for record-keeping. It iterates through all pairs of players, runs matches between them using the runMatch function, and updates the matchMatrix with results for display on the dashboard. After all matches are completed, it broadcasts the final results and resets the tournament state for potential future tournaments.
@@ -641,7 +645,7 @@ let isPaused = false;
                                
                                // Generate and send initial tournament Matrix
                                generateInitialMatrix();
-                                broadcast({ type: "TOURNAMENT_STARTED", players: players, matchMatrix: Matrix, config: CONFIG, totalGamesPlanned, totalGamesCompleted });
+                                broadcast({ type: "TOURNAMENT_STARTED", players: players, matchMatrix: Matrix, config: CONFIG, totalGamesPlanned, totalGamesCompleted, grundyValues: CONFIG.educational ? currentGrundyCache : undefined });
                                
                                 // Run a round-robin tournament where each Bot plays against every other Bot
                                 startSeed++; // Change the seed for each tournament to generate different pile configurations and forbidden moves for each tournament, while still maintaining reproducibility if needed by using the same seed. This allows for variety in the game conditions across tournaments, which can make the competition more interesting and challenging for the players, while still allowing for consistent conditions if desired by using a fixed seed.
@@ -718,7 +722,7 @@ let isPaused = false;
                                            console.log(`Match ${game}/${N} between ${currentFirstPlayerEmail} and ${opponentPlayerEmail}`); 
 
                                          let state = { piles: [...CONFIG.piles], turn: currentFirstPlayerEmail};
-                                           broadcast({ type: "CURRENT_FIGHT", fight: { playerA: botA.name, playerB: botB.name, game, totalGames: N }, totalGamesPlanned, totalGamesCompleted, config: CONFIG });
+                                           broadcast({ type: "CURRENT_FIGHT", fight: { playerA: botA.name, playerB: botB.name, game, totalGames: N }, totalGamesPlanned, totalGamesCompleted, config: CONFIG, grundyValues: CONFIG.educational ? currentGrundyCache : undefined });
         
                                           // Main game loop for steps of a single game between two Bots while there are still valid moves to be made (not Game Over)
                                               let currentPlayer = botA; 
@@ -782,23 +786,17 @@ let isPaused = false;
                                                                 // Apply Valid Move
                                                                 state.piles[move.pileIndex] -= move.count;
                                                                 currentPlayer.nMoves = (currentPlayer.nMoves || 0) + 1;
-                                                                    
-
-                                                                 
-                                                                 
-                                                                // Compute xor-sum after the move and update Intellectual Rate (iRate) if xor==0
-                                                                //xorSum = evaluateXORState(state.piles);
-                                                                xorSum = evaluateMEXState(state.piles);
-
-                                                                 if (xorSum === 0) {
-                                                                    currentPlayer.iRate = (currentPlayer.iRate || 0) + 1;
-                                                                    //console.log(`${currentPlayer.name} achieved xor-sum 0 — iRate now ${currentPlayer.iRate}`);
-                                                                 }
+                                                                 // Compute xor-sum after the move using cached Grundy values for better performance
+                                                                 xorSum = evaluateGrundyXORState(state.piles);
+                                                                  if (xorSum === 0) {
+                                                                     currentPlayer.iRate = (currentPlayer.iRate || 0) + 1;
+                                                                     //console.log(`${currentPlayer.name} achieved xor-sum 0 — iRate now ${currentPlayer.iRate}`);
+                                                                  }
 
                                                                 // Broadcast updated players list so leaderboard updates immediately after every correct move
                                                                 //try { broadcast({ type: 'PLAYERS_LIST', players, totalGamesPlanned, totalGamesCompleted,  }); } catch (e) { }
 
-                                                                 broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank, xorsum: xorSum });
+                                                                 broadcast({ type: "MOVE", player: currentPlayer.name, piles: state.piles, movedFrom: move.pileIndex, count: move.count, bonus: currentPlayer.timeBank, xorsum: xorSum, grundyValues: CONFIG.educational ? currentGrundyCache : undefined });
 
                                                                   await delay(MOVE_DELAY_MS); // Slow down move for dashboard viewers
                                                                   
@@ -931,30 +929,55 @@ var Matrix = [];
                                                         return NUMBER_OF_GAMES_PER_MATCH * N * (N - 1) / 2;
                 }
 
-                function evaluateXORState(piles) {return piles.reduce((acc, v) => acc ^ v, 0);}
+                function evaluateXORState(piles)       {return piles.reduce((acc, v) => acc ^ v, 0);}
+                function evaluateGrundyXORState(piles) {return piles.reduce((acc, v) => acc ^ currentGrundyCache[v], 0);}
+                // Compute Grundy values for all pile sizes up to the largest pile. This function is used to evaluate the game state for the Bots' decision-making process, especially if they are using a strategy based on Grundy numbers. 
+                // It takes into account the forbidden moves when calculating the reachable states from each pile size, which allows Bots to make informed decisions while respecting the constraints of the game. 
+                // The resulting Grundy values used for evaluating "intellect" of Bot's moves
+                var currentGrundyCache = []; // Cache to store previously computed Grundy values for optimization
+               
+                // Calculate current Grundy values with current forbidden moves and max pile size
+                function initializeGrundyCache() {
+                                                  const maxPile          = Math.max(...CONFIG.piles);
+                                                  const forbiddenMoveSet = new Set(CONFIG.forbidden);
+                                                         currentGrundyCache = Array(maxPile + 1).fill(0);
+                                                  
+                                                          for (let n = 1; n <= maxPile; n++) {
+                                                               // We collect achievable mexes for pile with n items
+                                                               const reachableMexes = new Set();
+                                                                for (let move = 1; move <= n; move++) 
+                                                                    if (forbiddenMoveSet.has(move)) continue;
+                                                                    else reachableMexes.add(currentGrundyCache[n - move]);
+                                                              
+                                                               let mex = 0;
+                                                                 while (reachableMexes.has(mex)) mex++;
+
+                                                                  currentGrundyCache[n] = mex;
+                                                          }
+                }                                                                   
 /*
      let forbidden = [2,5] 
       
 
 */
                 function evaluateMEXState(piles) {
-                    const mode      = CONFIG.mode;
-                    const forbidden = CONFIG.forbidden || [];
-                    const maxPile   = Math.max(...piles);
-                    const  forbiddenSet = new Set(forbidden);
+                    const mode              = CONFIG.mode;
+                    const forbiddenMoves    = CONFIG.forbidden || [];
+                    const maxPile           = Math.max(...piles);
+                    const  forbiddenMoveSet = new Set(forbiddenMoves);
 
                     // Compute Grundy values for all pile sizes up to the largest pile.
                     const  grundy = Array(maxPile + 1).fill(0);
                      for (let n = 1; n <= maxPile; n++) {
-                         const reachable = new Set();
-                          // 
-                          for (let k = 1; k <= n; k++) {
-                              if (forbiddenSet.has(k)) continue;
+                         const reachableMexes = new Set();
+                          // We collect achievable mexes for pile with n items
+                          for (let move = 1; move <= n; move++) {
+                              if (forbiddenMoveSet.has(move)) continue;
 
-                               reachable.add(grundy[n - k]);
+                               reachableMexes.add(grundy[n - move]);
                           }
                            let mex = 0;
-                            while (reachable.has(mex)) mex++;
+                            while (reachableMexes.has(mex)) mex++;
                             
                              grundy[n] = mex;
                      }
@@ -974,7 +997,7 @@ var Matrix = [];
                                    for (let i = 0; i < piles.length; i++) {
                                        if (piles[i] > 0) {
                                            const take = big ? piles[i] - ((ones % 2) ? 1 : 0) : 1;
-                                           if (take >= 1 && !forbiddenSet.has(take) && take <= piles[i]) {
+                                           if (take >= 1 && !forbiddenMoveSet.has(take) && take <= piles[i]) {
                                                return x;
                                            }
                                        }
