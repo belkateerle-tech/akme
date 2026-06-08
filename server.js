@@ -1,4 +1,4 @@
-const version = "0.3.5" 
+const version = "0.3.6" 
 const crypto              = require('crypto'); // Node crypto for server-side SHA256 password hashing
 const express             = require('express'); // Express framework for handling HTTP requests and serving the dashboard
 const http                = require('http'); // Node's built-in HTTP module to create a server that can handle both Express and Socket.IO connections on the same port
