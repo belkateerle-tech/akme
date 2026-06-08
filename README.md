@@ -62,7 +62,7 @@ The server starts on `http://localhost:3000` and broadcasts the tournament start
 ## Player Registration & Bot Submission
 
 ### Registration Flow
-1. Player enters their **email** and **bot avatar picto** (e.g., 🐶,🐼,🐸,)
+1. Player enters their **email** and **bot avatar picto** (e.g., 🐶,🐼,🐸)
 2. Player writes or pastes their **bot code** following the required function signature
 3. Click **Register** - the bot joins the tournament
 
