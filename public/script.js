@@ -541,7 +541,7 @@ var countdownInterval=null;
                                                                                  cells += `<th>${playersData[i].name}</th>`;
                                                                                   for (let j = 0; j < M; j++) {    
                                                                                        let id = `${i}*${j}`;
-                                                                                        let cellContent = (i === j) ? '—' : '0'; 
+                                                                                        let cellContent = (i === j) ? '⤴️' : '0'; 
                                                                                          cells += `<td><span id="${id}">${cellContent}</span></td>`;
                                                                                   }
                                                                                    cells += '</tr>';
