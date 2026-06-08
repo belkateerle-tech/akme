@@ -425,21 +425,17 @@ var countdownInterval=null;
                                                           if(forb.includes(count-i))P[i] = "🚷"; // 👣🌵🚷⚠️🔚🟤"<span class='forbidden'>🪙</span>" // "⚫️"; // ; // Mark coins that would be taken by a forbidden move with strikethrough  // '❌'; //; '💥'
                                                           else                      P[i] = "🪙"; //"<span class='valid'>🪙</span>";
                                                         }     
+                                                   // Show previous player if they were in a different pile or if this is a different move
+                                                   if(index === previousPlayer.pileIndex)
+                                                      if(index !== data.movedFrom) P[previousPlayer.position  ] = previousPlayer.name ;
+                                                      else                         P[previousPlayer.position-1] = previousPlayer.name ; //dumb hack
+                                                        
                                                    // If this pile was the one just changed by player, write player name or mark the player that take looser move with strikethrough to indicate he is looser
                                                    if(index === data.movedFrom)
                                                       if(data.xorsum >=0 ) P[count] =  playerDisplay; //`<span class='valid'>${player}</span>`;
                                                       else                 {P[count-1] =   `💥`, P[count] =  playerDisplay ;}//`<span class='forbidden'>${player}</span>` ;
                                                    
-                                                   // Show previous player if they were in a different pile or if this is a different move
-                                                   if(previousPlayer.pileIndex !== undefined && 
-                                                      index === previousPlayer.pileIndex && 
-                                                      index !== data.movedFrom) {
-                                                       // Show previous player in their pile position (with lighter indicator)
-                                                       if(previousPlayer.position < P.length) {
-
-                                                           P[previousPlayer.position] = previousPlayer.name ;
-                                                       }
-                                                   }
+                                                   
 
                                                     //console.log(P)  
                                                     let  pile = P.join('');
