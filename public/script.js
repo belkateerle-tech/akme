@@ -24,7 +24,7 @@ var MATCH_CONFIG = null; // Current game configuration for the active match
 // Store Grundy cache and previous move state for displaying game analysis
 let currentGrundyCache = []; // Array of Grundy values for each pile size
 let previousPlayer = { name: "?", pileIndex: null, position: null }; // Track previous player's position
-let lastXorSum = null; // Track last XOR-sum for indicator
+let lastXorSum = 0; // Track last XOR-sum for indicator
 
 const AVATAR_GRID_SIZE = 8;
 const BOT_AVATARS = [
@@ -266,7 +266,7 @@ let clientRegistrationTime = null; // Client's local time when delta was receive
                                                                                   }
                                                                                   // Reset previous player state for new game
                                                                                   previousPlayer = { name: "?", pileIndex: null, position: null };
-                                                                                  lastXorSum = null;
+                                                                                  lastXorSum = 0;
                                                                                    currentFightText.innerHTML = `⚔️ <strong>${fight.playerA}</strong> vs <strong>${fight.playerB}</strong> (Game ${fight.game}/${fight.totalGames})`;
                                                                                    if (typeof data.totalGamesPlanned === 'number') {
                                                                                        totalGamesPlanned = data.totalGamesPlanned;
@@ -410,9 +410,8 @@ var countdownInterval=null;
                 let pilesString = "";
                 
                 // Generate XOR indicator
-                const xorIndicator = (data.xorsum === 0) ? '👍' : '👎🏿'; //👍👎🏿 
-                const playerDisplay = `${player}${xorIndicator}`;
-                
+                const xorIndicator = (data.xorsum == 0) ? '👍' : '👎🏿';  
+                 const mark = (data.xorsum >=0 )? xorIndicator:`💥`;
                 // Store current player for next iteration
                 const currentPlayer = { name: player, pileIndex: data.movedFrom, position: piles[data.movedFrom] };
                 
@@ -421,40 +420,37 @@ var countdownInterval=null;
                                                   let count0 = piles_[index];
                                                    let P = Array(count0).fill("⚫️");
                                                     for(let i=0; i<count0; i++)
-                                                        if(i<count){
-                                                          if(forb.includes(count-i))P[i] = "🚷"; // 👣🌵🚷⚠️🔚🟤"<span class='forbidden'>🪙</span>" // "⚫️"; // ; // Mark coins that would be taken by a forbidden move with strikethrough  // '❌'; //; '💥'
-                                                          else                      P[i] = "🪙"; //"<span class='valid'>🪙</span>";
-                                                        }     
+                                                        if(i<count)
+                                                          if(forb.includes(count-i))P[i] = "🚷"; // 👣🌵🚷⚠️🟤
+                                                          else                      P[i] = "🪙"; //
+                                                             
                                                    // Show previous player if they were in a different pile or if this is a different move
-                                                   if(index === previousPlayer.pileIndex)
-                                                      if(index !== data.movedFrom) P[previousPlayer.position  ] = previousPlayer.name ;
-                                                      else                         P[previousPlayer.position-1] = previousPlayer.name ; //dumb hack
-                                                        
-                                                   // If this pile was the one just changed by player, write player name or mark the player that take looser move with strikethrough to indicate he is looser
-                                                   if(index === data.movedFrom)
-                                                      if(data.xorsum >=0 ) P[count] =  playerDisplay; //`<span class='valid'>${player}</span>`;
-                                                      else                 {P[count-1] =   `💥`, P[count] =  playerDisplay ;}//`<span class='forbidden'>${player}</span>` ;
-                                                   
+                                                   if(index === previousPlayer.pileIndex){
+                                                    P[previousPlayer.position  ] = previousPlayer.name ;
+                                                    P[previousPlayer.position+1] = (lastXorSum == 0) ? '👍' : '👎🏿'; 
+                                                   }
+                                          
+                                                    if(index === data.movedFrom){
+                                                       P[count]   =  player;
+                                                       P[count+1] = mark;
+                                                    }
                                                    
 
-                                                    //console.log(P)  
-                                                    let  pile = P.join('');
+                                                     //console.log(P)  
+                                                     let  pile = P.join('');
                                                     
-                                                    // Add Grundy value display for Educational mode
-                                                    let grundyDisplay = '(G=..)';
-                                                    if(currentGrundyCache && currentGrundyCache.length > count) {
-                                                        let gValue = String(currentGrundyCache[count]).padStart(2, ' ');
+                                                     // Add Grundy value display for Educational mode
+                                                     let grundyDisplay = '(G=_ )';
+                                                     if(currentGrundyCache && currentGrundyCache.length > count) {
+                                                        let gValue = String(currentGrundyCache[count]).padStart(2, '_');
                                                          grundyDisplay = `(G=${gValue})`;
-                                                    }
+                                                     }
                                                     
-                                                     pilesString +=  String(count).padStart(2) + grundyDisplay.padStart(6) + ": " + pile + "\n";  
+                                                      pilesString +=  String(count).padStart(2) + grundyDisplay.padStart(6) + ": " + pile + "\n";  
                                                  }
                              );
-                               let winnerMessage =`✅ Winner is `;
-                                if(data.winnerName) winnerMessage += data.winnerName;
-                                else                winnerMessage = "";
-
-                                 pilesString += winnerMessage;    
+                               let winnerMessage =`✅ Winner is ` + winner;
+                               //  pilesString += winnerMessage;    
                 const display = document.getElementById('piles-display');
                                   display.innerHTML = pilesString;
                                   
