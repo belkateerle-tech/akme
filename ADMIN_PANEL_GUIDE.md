@@ -11,7 +11,7 @@ The Admin Panel is a secure, real-time interface for tournament administrators t
 | Element | Details |
 |---------|---------|
 | **URL** | `http://localhost:3000/adminAKME` |
-| **Default Password** | `100` |
+| **Default Password** | `A..E` |
 | **Authentication** | SHA256 hashed on server-side |
 | **Session** | Persists until logout or disconnect |
 
@@ -21,7 +21,7 @@ The Admin Panel is a secure, real-time interface for tournament administrators t
 
 ### How to Log In
 1. Navigate to `http://localhost:3000/adminAKME`
-2. Enter admin password: `100`
+2. Enter admin password: `A..E`
 3. Press **Enter** or click **Login**
 4. Upon success, the login view closes and admin panel appears
 
@@ -385,7 +385,7 @@ New password takes effect immediately.
 
 ```javascript
 // Login with password
-{ type: "ADMIN_LOGIN", password: "100" }
+{ type: "ADMIN_LOGIN", password: "A..E" }
 
 // Tournament control
 { type: "ADMIN_START" }
@@ -502,7 +502,7 @@ New password takes effect immediately.
 ### Production Deployment
 For production use, recommend:
 1. **HTTPS/WSS** - Encrypt all communication
-2. **Stronger password** - Change from default `100`
+2. **Stronger password** - Change from default `A..E`
 3. **Rate limiting** - Prevent brute force attacks
 4. **Audit logging** - Log all admin actions
 5. **Session timeout** - Auto-logout after inactivity
